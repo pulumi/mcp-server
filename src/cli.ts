@@ -94,5 +94,60 @@ ${upResult.stdout || 'No additional output'}
         }]
       };
     }
+  },
+
+  'stack-output': {
+    schema: {
+      workDir: z.string().describe("The working directory of the program."),
+      stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'."),
+      outputName: z.string().optional().describe("The specific stack output name to retrieve.")
+    },
+    handler: async (args: { workDir: string; stackName?: string; outputName?: string }) => {
+      const stackArgs: automation.LocalProgramArgs = {
+        stackName: args.stackName ?? "dev",
+        workDir: args.workDir,
+      };
+
+      const stack = await automation.LocalWorkspace.selectStack(stackArgs);
+
+      // Get stack outputs
+      const outputs = await stack.outputs();
+
+      let description: string;
+      let outputContent: string;
+
+      if (args.outputName) {
+        // Return a specific output
+        const specificOutput = outputs[args.outputName];
+        if (specificOutput) {
+          description = `Pulumi Stack Output: ${args.outputName}`;
+          outputContent = `${args.outputName}: ${JSON.stringify(specificOutput.value)}`;
+        } else {
+          description = `Pulumi Stack Output: ${args.outputName}`;
+          outputContent = `Output '${args.outputName}' not found.`;
+        }
+      } else {
+        // Return all outputs
+        description = "Pulumi Stack Outputs";
+        outputContent = Object.entries(outputs)
+          .map(([key, value]) => `${key}: ${JSON.stringify(value.value)}`)
+          .join('\\n');
+        if (!outputContent) {
+          outputContent = 'No outputs found';
+        }
+      }
+
+      return {
+        description: description,
+        content: [{ 
+          type: "text" as const, 
+          text: `
+Stack: ${stack.name}
+
+${outputContent}
+`
+        }]
+      };
+    }
   }
 }; 
