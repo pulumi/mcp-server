@@ -1,4 +1,6 @@
-# @pulumi/mcp-server
+# Pulumi MCP Server
+
+> **Note:** This MCP server is currently under active development. Its API (including available commands and their arguments) is experimental and may introduce breaking changes without notice. Please file an issue on [GitHub](https://github.com/pulumi/copilot-mcp/issues) if you encounter bugs or need support for additional Pulumi commands.
 
 A server implementing the [Model Context Protocol](https://modelcontextprotocol.io) (MCP) for interacting with Pulumi CLI using the Pulumi Automation API and Pulumi Cloud API.
 
