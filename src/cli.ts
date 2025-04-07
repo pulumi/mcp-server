@@ -26,7 +26,7 @@ export const cliCommands = {
       const stack = await automation.LocalWorkspace.createOrSelectStack(stackArgs);
 
       // Run preview
-      const previewResult = await stack.preview();
+      const previewResult = await stack.preview({diff: true});
 
       // Format the changes
       const changes = previewResult.changeSummary;
