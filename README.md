@@ -17,7 +17,7 @@ This package is primarily intended to be integrated into applications that can u
   "mcpServers": {
     "pulumi": {
       "command": "npx",
-      "args": ["@pulumi/mcp-server"]
+      "args": ["@pulumi/mcp-server@latest"]
     }
   }
 }
