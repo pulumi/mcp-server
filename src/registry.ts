@@ -105,30 +105,10 @@ ${outputProperties}
 export async function getSchema(provider: string): Promise<Schema> {
   const cacheFile = path.join(CACHE_DIR, `${provider.replace(/[^a-zA-Z0-9]/g, '_')}_schema.json`);
   
-  // Try to read from cache first
-  if (fs.existsSync(cacheFile)) {
-    try {
-      const cachedSchema = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
-      return cachedSchema;
-    } catch (error) {
-      console.error(`Error reading cached schema for ${provider}:`, error);
-    }
+  if (!fs.existsSync(cacheFile)) {
+    execSync(`pulumi package get-schema ${provider} >> ${cacheFile}`);
   }
-
-  // If not in cache or error reading cache, fetch from Pulumi
-  const schemaOutput = execSync(`pulumi package get-schema ${provider}`, {
-    encoding: 'utf-8'
-  });
-  const schema = JSON.parse(schemaOutput) as Schema;
-
-  // Cache the schema
-  try {
-    fs.writeFileSync(cacheFile, schemaOutput);
-  } catch (error) {
-    console.error(`Error caching schema for ${provider}:`, error);
-  }
-
-  return schema;
+  return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
 }
 
 export const registryCommands = {
