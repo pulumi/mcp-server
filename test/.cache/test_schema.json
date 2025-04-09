@@ -1,0 +1,80 @@
+{
+    "name": "test",
+    "resources": {
+        "test:test:Test": {
+            "description": "A test resource for unit testing",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier of the resource"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The name of the resource"
+                },
+                "arn": {
+                    "type": "string",
+                    "description": "The ARN of the resource"
+                }
+            },
+            "required": ["id", "arn"],
+            "inputProperties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name to give to the resource"
+                },
+                "tags": {
+                    "type": "object",
+                    "description": "Tags to apply to the resource"
+                }
+            },
+            "requiredInputs": ["name"]
+        },
+        "test:test:AnotherTest": {
+            "description": "Another test resource with different properties",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier"
+                },
+                "value": {
+                    "type": "number",
+                    "description": "A numeric value"
+                }
+            },
+            "required": ["id"],
+            "inputProperties": {
+                "value": {
+                    "type": "number",
+                    "description": "The value to set"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the resource is enabled"
+                }
+            },
+            "requiredInputs": ["value", "enabled"]
+        },
+        "test:module:ModuleTest": {
+            "description": "A test resource in a different module",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "The current status"
+                }
+            },
+            "required": ["id", "status"],
+            "inputProperties": {
+                "config": {
+                    "type": "object",
+                    "description": "Configuration object"
+                }
+            },
+            "requiredInputs": []
+        }
+    }
+}
