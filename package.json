@@ -23,7 +23,9 @@
   ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "mocha --require ts-node/register 'test/**/*.test.ts'",
+    "test:watch": "mocha --require ts-node/register --watch --watch-files test 'test/**/*.test.ts'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",
@@ -31,7 +33,12 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
     "@types/node": "^20.10.0",
+    "chai": "^5.1.0",
+    "mocha": "^10.3.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.0"
   }
 }
