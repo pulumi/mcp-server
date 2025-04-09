@@ -23,6 +23,48 @@ This package is primarily intended to be integrated into applications that can u
 }
 ```
 
+## Docker Container
+
+You can also run the Pulumi MCP Server as a Docker container. This approach eliminates the need to install Node.js and the package dependencies directly on your host machine.
+
+### Building the Container
+
+To build the container:
+
+```bash
+docker build -t pulumi/mcp-server:latest .
+```
+
+### Using with MCP Clients
+
+To use the containerized server with MCP clients, you'll need to configure the client to use the Docker container. For example, in Claude desktop's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "pulumi/mcp-server:latest"]
+    }
+  }
+}
+```
+
+For Pulumi operations that require access to local Pulumi projects, you'll need to mount the appropriate directories. For example, if your Pulumi project is in `~/projects/my-pulumi-app`:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-v", "~/projects/my-pulumi-app:/app/project", "pulumi/mcp-server:latest"]
+    }
+  }
+}
+```
+
+Then when using the MCP tools, you would reference the project directory as `/app/project` in your requests.
+
 ## Available Commands
 
 The server exposes handlers for the following Pulumi operations, callable via MCP requests:
