@@ -42,7 +42,6 @@ export const registryCommands = function(cacheDir: string) {
     if (!fs.existsSync(cacheFile)) {
       execSync(`pulumi package get-schema ${provider} >> ${cacheFile}`);
     }
-    console.log(`Cache file: ${cacheFile}`);
     return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
   }
 
