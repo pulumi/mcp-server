@@ -1,8 +1,7 @@
 import { expect } from 'chai';
-import { formatSchema } from '../dist/registry.js';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { registryCommands } from '../src/registry.ts';
+import { formatSchema,registryCommands } from '../src/registry.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
