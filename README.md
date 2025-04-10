@@ -79,20 +79,21 @@ The server exposes handlers for the following Pulumi operations, callable via MC
     *   `workDir` (string, required): The working directory containing the `Pulumi.yaml` project file.
     *   `stackName` (string, optional): The stack name to retrieve outputs from (defaults to 'dev').
     *   `outputName` (string, optional): The specific stack output name to retrieve. If omitted, all outputs for the stack are returned.
-*   **`getResource`**: Returns information about a specific Pulumi Registry resource, including its inputs and outputs.
+*   **`get-resource`**: Returns information about a specific Pulumi Registry resource, including its inputs and outputs.
     *   `provider` (string, required): The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or `github.com/org/repo` for Git-hosted components.
     *   `module` (string, optional): The module to query (e.g., 's3', 'ec2', 'lambda').
     *   `resource` (string, required): The resource type name (e.g., 'Bucket', 'Function', 'Instance').
-*   **`listResources`**: Lists available resources within a Pulumi provider package, optionally filtered by module.
+*   **`list-resources`**: Lists available resources within a Pulumi provider package, optionally filtered by module.
     *   `provider` (string, required): The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or `github.com/org/repo` for Git-hosted components.
     *   `module` (string, optional): The module to filter by (e.g., 's3', 'ec2', 'lambda').
 
 ## Development
 
 1.  Clone the repository.
-2.  Install dependencies: `npm install`
-3.  Build the project: `npm run build`
+2.  Install dependencies: `make ensure`
+3.  Build the project: `make build`
+4.  Test the project: `make test`
 
 ## License
 
-This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details. 
+This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details.
