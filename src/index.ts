@@ -27,7 +27,7 @@ type TextContent = {
 // Create an MCP server
 const server = new McpServer({ 
   name: "PulumiServer", 
-  version: "0.1.1",
+  version: "0.1.2",
   description: "An MCP server for querying Pulumi Registry information and running Pulumi CLI commands"
 });
 
