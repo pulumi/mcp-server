@@ -10,9 +10,3 @@ build:
 test:
 	@echo "Testing..."
 	npm test
-
-.PHONY: publish
-publish: build test
-	@echo "Publishing to NPMjs.com: ${VERSION}"
-	npm publish --dry-run
-	npm info 2>/dev/null 
