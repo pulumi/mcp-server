@@ -1,0 +1,47 @@
+name: Publish Package to npmjs
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v1.0.0, v2.3.4-beta.1 etc.
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org' # Needed for npm publish and auth setup
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: make build
+
+      - name: Run tests
+        run: make test
+
+      - name: Check Version Consistency
+        id: check_version
+        run: |
+          PACKAGE_VERSION=$(jq -r .version package.json)
+          TAG_NAME="${{ github.ref_name }}"
+          echo "Tag name: $TAG_NAME"
+          echo "Package version: $PACKAGE_VERSION"
+          if [ "$TAG_NAME" != "v$PACKAGE_VERSION" ]; then
+            echo "Error: Tag ($TAG_NAME) does not match the version in package.json (v$PACKAGE_VERSION)."
+            exit 1
+          fi
+          echo "Version check passed."
+
+      - name: Publish to npmjs
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # Use the secret token for authentication 
