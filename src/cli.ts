@@ -13,6 +13,7 @@ type UpArgs = {
 
 export const cliCommands = {
   preview: {
+    description: "Run pulumi preview for a given project and stack",
     schema: {
       workDir: z.string().describe("The working directory of the program."),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'.")
@@ -55,6 +56,7 @@ ${previewResult.stdout || 'No additional output'}
   },
 
   up: {
+    description: "Run pulumi up for a given project and stack",
     schema: {
       workDir: z.string().describe("The working directory of the program."),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'.")
@@ -97,6 +99,7 @@ ${upResult.stdout || 'No additional output'}
   },
 
   'stack-output': {
+    description: "Get the output value(s) of a given stack",
     schema: {
       workDir: z.string().describe("The working directory of the program."),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'."),

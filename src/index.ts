@@ -47,7 +47,7 @@ const handleError = (error: unknown, toolName: string): { description: string; c
 // Register registry commands
 Object.entries(registryCommands(CACHE_DIR)).forEach(([commandName, command]) => {
   const toolName = `pulumi-registry-${commandName}`;
-  server.tool(toolName, command.schema, async (args: any) => {
+  server.tool(toolName, command.description, command.schema, async (args: any) => {
     try {
       return await command.handler(args);
     } catch (error) {
@@ -59,7 +59,7 @@ Object.entries(registryCommands(CACHE_DIR)).forEach(([commandName, command]) => 
 // Register CLI commands
 Object.entries(cliCommands).forEach(([commandName, command]) => {
   const toolName = `pulumi-cli-${commandName}`;
-  server.tool(toolName, command.schema, async (args: any) => {
+  server.tool(toolName, command.description, command.schema, async (args: any) => {
     try {
       return await command.handler(args);
     } catch (error) {
