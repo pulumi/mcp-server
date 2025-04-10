@@ -159,7 +159,7 @@ describe('Registry Commands', () => {
         resource: 'Test'
       };
 
-      const result = await commands.getResource.handler(args);
+      const result = await commands["get-resource"].handler(args);
 
       expect(result.description).to.equal('Returns information about Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
@@ -174,26 +174,11 @@ describe('Registry Commands', () => {
         resource: 'ModuleTest'
       };
 
-      const result = await commands.getResource.handler(args);
+      const result = await commands["get-resource"].handler(args);
 
       expect(result.description).to.equal('Returns information about Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
       expect(result.content[0].text).to.include('Resource: test:module:ModuleTest');
-    });
-
-    it('should handle non-existent resources', async () => {
-      const args = {
-        provider: 'test',
-        module: 'test',
-        resource: 'NonExistent'
-      };
-
-      const result = await commands.getResource.handler(args);
-
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
-      expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('No information found for test:test:NonExistent');
-      expect(result.content[0].text).to.include('Available resources:');
     });
 
     it('should handle missing module parameter', async () => {
@@ -202,46 +187,121 @@ describe('Registry Commands', () => {
         resource: 'Test'
       };
 
-      const result = await commands.getResource.handler(args);
+      const result = await commands["get-resource"].handler(args);
 
       expect(result.description).to.equal('Returns information about Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('No information found for test:index:Test');
+      expect(result.content[0].text).to.include('Resource: test:test:Test');
+      expect(result.content[0].text).to.include('A test resource for unit testing');
+    });
+
+    it('should find resource in any module when module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        resource: 'ModuleTest'
+      };
+
+      const result = await commands["get-resource"].handler(args);
+
+      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Resource: test:module:ModuleTest');
+      expect(result.content[0].text).to.include('A test resource in a different module');
+    });
+
+    it('should find resource in complex module path', async () => {
+      const args = {
+        provider: 'test',
+        resource: 'ComplexTest'
+      };
+
+      const result = await commands["get-resource"].handler(args);
+
+      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Resource: test:complex/module:ComplexTest');
+      expect(result.content[0].text).to.include('A test resource in a complex module path');
+    });
+
+    it('should find resource in complex module path by main module name', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex',
+        resource: 'ComplexTest'
+      };
+
+      const result = await commands["get-resource"].handler(args);
+
+      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Resource: test:complex/module:ComplexTest');
+      expect(result.content[0].text).to.include('A test resource in a complex module path');
+    });
+
+    it('should prefer exact module match when module is specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        resource: 'Test'
+      };
+
+      const result = await commands["get-resource"].handler(args);
+
+      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Resource: test:test:Test');
+      expect(result.content[0].text).to.include('A test resource for unit testing');
+    });
+
+    it('should handle non-existent resources with module specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        resource: 'NonExistent'
+      };
+
+      const result = await commands["get-resource"].handler(args);
+
+      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('No information found for NonExistent');
+      expect(result.content[0].text).to.include('Available resources:');
     });
   });
 
   describe('listResources handler', () => {
     const commands = registryCommands(CACHE_DIR);
 
-    it('should list all resources for a provider', async () => {
+    it('should list all resources for a provider with their modules', async () => {
       const args = {
         provider: 'test'
       };
 
-      const result = await commands.listResources.handler(args);
+      const result = await commands["list-resources"].handler(args);
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
       expect(result.content[0].text).to.include('Available resources for test:');
-      expect(result.content[0].text).to.include('Test');
-      expect(result.content[0].text).to.include('AnotherTest');
-      expect(result.content[0].text).to.include('ModuleTest');
+      expect(result.content[0].text).to.include('Test (test)');
+      expect(result.content[0].text).to.include('AnotherTest (test)');
+      expect(result.content[0].text).to.include('ModuleTest (module)');
+      expect(result.content[0].text).to.include('ComplexTest (complex)');
     });
 
-    it('should filter resources by module', async () => {
+    it('should filter resources by main module name', async () => {
       const args = {
         provider: 'test',
-        module: 'test'
+        module: 'complex'
       };
 
-      const result = await commands.listResources.handler(args);
+      const result = await commands["list-resources"].handler(args);
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Available resources for test/test:');
-      expect(result.content[0].text).to.include('Test');
-      expect(result.content[0].text).to.include('AnotherTest');
-      expect(result.content[0].text).to.not.include('ModuleTest');
+      expect(result.content[0].text).to.include('Available resources for test/complex:');
+      expect(result.content[0].text).to.include('ComplexTest (complex)');
+      expect(result.content[0].text).to.not.include('Test (test)');
+      expect(result.content[0].text).to.not.include('ModuleTest (module)');
     });
 
     it('should handle non-existent module', async () => {
@@ -250,7 +310,7 @@ describe('Registry Commands', () => {
         module: 'nonexistent'
       };
 
-      const result = await commands.listResources.handler(args);
+      const result = await commands["list-resources"].handler(args);
 
       expect(result.description).to.equal('No resources found');
       expect(result.content[0].type).to.equal('text');

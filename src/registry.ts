@@ -46,7 +46,7 @@ export const registryCommands = function(cacheDir: string) {
   }
 
   return {
-    getResource: {
+    "get-resource": {
       description: "Get information about a specific resource from the Pulumi Registry",
       schema: {
         provider: z.string().describe("The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"),
@@ -57,13 +57,28 @@ export const registryCommands = function(cacheDir: string) {
         const schema = await getSchema(args.provider);
         const providerName = schema.name;
 
-        // Look up the resource using correct casing
-        const resourceKey = Object.keys(schema.resources).length > 0 
-          ? Object.keys(schema.resources)[0].includes('/') 
-            ? `${providerName}:${args.module ?? 'index'}/${lowercaseFirstChar(args.resource)}:${args.resource}`
-            : `${providerName}:${args.module ?? 'index'}:${args.resource}`
-          : `${args.provider}:${args.module ?? 'index'}:${args.resource}`;
-        const resourceData = schema.resources[resourceKey];
+        // Search through all resources to find a match
+        let resourceKey: string | undefined;
+        let resourceData: ResourceSchema | undefined;
+
+        if (args.module) {
+          // If module is provided, use the exact path
+          resourceKey = Object.keys(schema.resources).find(key => {
+            const [_, modulePath, resourceName] = key.split(':');
+            const mainModule = modulePath.split('/')[0];
+            return mainModule === args.module && resourceName === args.resource;
+          });
+        } else {
+          // If no module provided, find any resource with matching name
+          resourceKey = Object.keys(schema.resources).find(key => {
+            const resourceName = key.split(':').pop();
+            return resourceName === args.resource;
+          });
+        }
+
+        if (resourceKey) {
+          resourceData = schema.resources[resourceKey];
+        }
 
         if (!resourceData) {
           const availableResources = Object.keys(schema.resources)
@@ -74,7 +89,7 @@ export const registryCommands = function(cacheDir: string) {
             description: "Returns information about Pulumi Registry resources",
             content: [{ 
               type: "text" as const, 
-              text: `No information found for ${resourceKey}. Available resources: ${availableResources.join(', ')}` 
+              text: `No information found for ${args.resource}. Available resources: ${availableResources.join(', ')}` 
             }]
           };
         }
@@ -83,13 +98,13 @@ export const registryCommands = function(cacheDir: string) {
           description: "Returns information about Pulumi Registry resources",
           content: [{ 
             type: "text" as const, 
-            text: formatSchema(resourceKey, resourceData)
+            text: formatSchema(resourceKey!, resourceData)
           }]
         };
       }
     },
 
-    listResources: {
+    "list-resources": {
       description: "List all resource types for a given provider and module",
       schema: {
         provider: z.string().describe("The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"),
@@ -101,19 +116,22 @@ export const registryCommands = function(cacheDir: string) {
         // Filter and format resources
         const resources = Object.entries(schema.resources)
           .filter(([key]) => {
-            const [_, modulePath] = key.split(':');
             if (args.module) {
-              const moduleMatch = modulePath.split('/')[0];
-              return moduleMatch === args.module;
+              const [_, modulePath] = key.split(':');
+              const mainModule = modulePath.split('/')[0];
+              return mainModule === args.module;
             }
             return true;
           })
           .map(([key, resource]) => {
             const resourceName = key.split(':').pop() || '';
+            const modulePath = key.split(':')[1];
+            const mainModule = modulePath.split('/')[0];
             // Trim description at first '#' character
             const shortDescription = resource.description?.split('\n')[0].trim() ?? '<no description>';
             return {
               name: resourceName,
+              module: mainModule,
               description: shortDescription
             };
           });
@@ -131,7 +149,7 @@ export const registryCommands = function(cacheDir: string) {
         }
 
         const resourceList = resources
-          .map(r => `- ${r.name}\n  ${r.description}`)
+          .map(r => `- ${r.name} (${r.module})\n  ${r.description}`)
           .join('\n\n');
 
         return {

@@ -75,6 +75,27 @@
                 }
             },
             "requiredInputs": []
+        },
+        "test:complex/module:ComplexTest": {
+            "description": "A test resource in a complex module path",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier"
+                },
+                "complexity": {
+                    "type": "number",
+                    "description": "The complexity level"
+                }
+            },
+            "required": ["id"],
+            "inputProperties": {
+                "complexity": {
+                    "type": "number",
+                    "description": "The complexity level to set"
+                }
+            },
+            "requiredInputs": ["complexity"]
         }
     }
 }
