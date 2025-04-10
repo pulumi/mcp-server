@@ -47,6 +47,7 @@ export const registryCommands = function(cacheDir: string) {
 
   return {
     getResource: {
+      description: "Get information about a specific resource from the Pulumi Registry",
       schema: {
         provider: z.string().describe("The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"),
         module: z.string().optional().describe("The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default."),
@@ -89,6 +90,7 @@ export const registryCommands = function(cacheDir: string) {
     },
 
     listResources: {
+      description: "List all resource types for a given provider and module",
       schema: {
         provider: z.string().describe("The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"),
         module: z.string().optional().describe("Optional module to filter by (e.g., 's3', 'ec2', 'lambda')")
