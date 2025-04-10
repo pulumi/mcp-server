@@ -57,50 +57,45 @@ export const registryCommands = function(cacheDir: string) {
         const schema = await getSchema(args.provider);
         const providerName = schema.name;
 
-        // Search through all resources to find a match
-        let resourceKey: string | undefined;
-        let resourceData: ResourceSchema | undefined;
+        // Find the resource entry [key, data] directly
+        const resourceEntry = Object.entries(schema.resources).find(([key]) => {
+          const [_, modulePath, resourceName] = key.split(':');
+          const mainModule = modulePath.split('/')[0];
 
-        if (args.module) {
-          // If module is provided, use the exact path
-          resourceKey = Object.keys(schema.resources).find(key => {
-            const [_, modulePath, resourceName] = key.split(':');
-            const mainModule = modulePath.split('/')[0];
+          if (args.module) {
+            // If module is provided, match module and resource name
             return mainModule === args.module && resourceName === args.resource;
-          });
-        } else {
-          // If no module provided, find any resource with matching name
-          resourceKey = Object.keys(schema.resources).find(key => {
-            const resourceName = key.split(':').pop();
+          } else {
+            // If no module provided, match resource name only
             return resourceName === args.resource;
-          });
-        }
+          }
+        });
 
-        if (resourceKey) {
-          resourceData = schema.resources[resourceKey];
-        }
+        if (resourceEntry) {
+          // Destructure the found entry - TS knows these are defined now
+          const [resourceKey, resourceData] = resourceEntry;
 
-        if (!resourceData) {
+          return {
+            description: "Returns information about Pulumi Registry resources",
+            content: [{
+              type: "text" as const,
+              text: formatSchema(resourceKey, resourceData) // No '!' needed
+            }]
+          };
+        } else {
+          // Handle the case where the resource was not found
           const availableResources = Object.keys(schema.resources)
             .map(key => key.split(':').pop())
             .filter(Boolean);
 
           return {
-            description: "Returns information about Pulumi Registry resources",
-            content: [{ 
-              type: "text" as const, 
-              text: `No information found for ${args.resource}. Available resources: ${availableResources.join(', ')}` 
+            description: "Returns information about Pulumi Registry resources", // Consider making this more specific, e.g., "Resource not found"
+            content: [{
+              type: "text" as const,
+              text: `No information found for ${args.resource}${args.module ? ` in module ${args.module}` : ''}. Available resources: ${availableResources.join(', ')}` // Slightly improved message
             }]
           };
         }
-
-        return {
-          description: "Returns information about Pulumi Registry resources",
-          content: [{ 
-            type: "text" as const, 
-            text: formatSchema(resourceKey!, resourceData)
-          }]
-        };
       }
     },
 
