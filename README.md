@@ -6,6 +6,10 @@ A server implementing the [Model Context Protocol](https://modelcontextprotocol.
 
 This package allows MCP clients to perform Pulumi operations like retrieving package information, previewing changes, deploying updates, and retrieving stack outputs programmatically without needing the Pulumi CLI installed directly in the client environment.
 
+<a href="https://glama.ai/mcp/servers/@pulumi/mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@pulumi/mcp-server/badge" alt="@pulumi/mcp-server MCP server" />
+</a>
+
 ## Usage
 
 The Pulumi CLI has to be installed on you machine.
