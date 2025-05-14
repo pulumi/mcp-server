@@ -21,7 +21,20 @@ This package is primarily intended to be integrated into applications that can u
   "mcpServers": {
     "pulumi": {
       "command": "npx",
-      "args": ["@pulumi/mcp-server@latest"]
+      "args": ["@pulumi/mcp-server@latest","stdio"]
+    }
+  }
+}
+```
+
+Or if you prefer HTTP with Server-Sent Events (SSE) instead of `stdio`:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "npx",
+      "args": ["@pulumi/mcp-server@latest","sse"]
     }
   }
 }
@@ -48,11 +61,28 @@ To use the containerized server with MCP clients, you'll need to configure the c
   "mcpServers": {
     "pulumi": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "pulumi/mcp-server:latest"]
+      "args": ["run", "-i", "--rm", "pulumi/mcp-server:latest", "stdio"]
     }
   }
 }
 ```
+
+### Using with MCP Clients over HTTP (SSE)
+
+To use the containerized server with MCP clients over HTTP (SSE), you can run the container with the following command:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-p", "3000:3000", "pulumi/mcp-server:latest", "sse"]
+    }
+  }
+}
+```
+
+
 
 For Pulumi operations that require access to local Pulumi projects, you'll need to mount the appropriate directories. For example, if your Pulumi project is in `~/projects/my-pulumi-app`:
 

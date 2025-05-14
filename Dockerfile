@@ -9,6 +9,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsup.config.ts ./
 
 # Install dependencies
 RUN npm ci
@@ -51,6 +52,8 @@ USER appuser
 
 # Set environment variables
 ENV NODE_ENV=production
+
+EXPOSE 3000
 
 # Command to run the application
 ENTRYPOINT ["node", "dist/index.js"]

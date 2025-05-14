@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { formatSchema,registryCommands } from '../src/registry.js';
+import { formatSchema,registryCommands } from '../src/pulumi/registry.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
