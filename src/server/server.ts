@@ -51,6 +51,7 @@ export class Server extends McpServer {
     // Register registry commands
     Object.entries(registryCommands(CACHE_DIR)).forEach(([commandName, command]) => {
       const toolName = `pulumi-registry-${commandName}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tool(toolName, command.description, command.schema, async (args: any) => {
         try {
           return await command.handler(args);
@@ -63,6 +64,7 @@ export class Server extends McpServer {
     // Register CLI commands
     Object.entries(cliCommands).forEach(([commandName, command]) => {
       const toolName = `pulumi-cli-${commandName}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tool(toolName, command.description, command.schema, async (args: any) => {
         try {
           return await command.handler(args);

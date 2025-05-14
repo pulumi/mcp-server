@@ -65,11 +65,9 @@ export const registryCommands = function (cacheDir: string) {
       },
       handler: async (args: GetResourceArgs) => {
         const schema = await getSchema(args.provider);
-        const providerName = schema.name;
-
         // Find the resource entry [key, data] directly
         const resourceEntry = Object.entries(schema.resources).find(([key]) => {
-          const [_, modulePath, resourceName] = key.split(':');
+          const [, modulePath, resourceName] = key.split(':');
           const mainModule = modulePath.split('/')[0];
 
           if (args.module) {
@@ -133,7 +131,7 @@ export const registryCommands = function (cacheDir: string) {
         const resources = Object.entries(schema.resources)
           .filter(([key]) => {
             if (args.module) {
-              const [_, modulePath] = key.split(':');
+              const [, modulePath] = key.split(':');
               const mainModule = modulePath.split('/')[0];
               return mainModule === args.module;
             }
@@ -186,12 +184,6 @@ export const registryCommands = function (cacheDir: string) {
     }
   };
 };
-
-// Helper function to lowercase first character only
-function lowercaseFirstChar(str: string): string {
-  if (!str) return str;
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
 
 // Helper function to format schema
 export function formatSchema(resourceKey: string, resourceData: ResourceSchema): string {
