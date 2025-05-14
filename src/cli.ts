@@ -1,5 +1,5 @@
-import { z } from "zod";
-import * as automation from "@pulumi/pulumi/automation/index.js";
+import { z } from 'zod';
+import * as automation from '@pulumi/pulumi/automation/index.js';
 
 type PreviewArgs = {
   workDir: string;
@@ -13,21 +13,21 @@ type UpArgs = {
 
 export const cliCommands = {
   preview: {
-    description: "Run pulumi preview for a given project and stack",
+    description: 'Run pulumi preview for a given project and stack',
     schema: {
-      workDir: z.string().describe("The working directory of the program."),
+      workDir: z.string().describe('The working directory of the program.'),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'.")
     },
     handler: async (args: PreviewArgs) => {
       const stackArgs: automation.LocalProgramArgs = {
-        stackName: args.stackName ?? "dev",
-        workDir: args.workDir,
+        stackName: args.stackName ?? 'dev',
+        workDir: args.workDir
       };
 
       const stack = await automation.LocalWorkspace.createOrSelectStack(stackArgs);
 
       // Run preview
-      const previewResult = await stack.preview({diff: true});
+      const previewResult = await stack.preview({ diff: true });
 
       // Format the changes
       const changes = previewResult.changeSummary;
@@ -35,14 +35,15 @@ export const cliCommands = {
         `Create: ${changes.create}`,
         `Update: ${changes.update}`,
         `Delete: ${changes.delete}`,
-        `Same: ${changes.same}`,
+        `Same: ${changes.same}`
       ].join('\n');
 
       return {
-        description: "Pulumi Preview Results",
-        content: [{ 
-          type: "text" as const, 
-          text: `
+        description: 'Pulumi Preview Results',
+        content: [
+          {
+            type: 'text' as const,
+            text: `
 Preview Results for stack: ${stack.name}
 
 Changes:
@@ -50,21 +51,22 @@ ${changesSummary}
 
 ${previewResult.stdout || 'No additional output'}
 `
-        }]
+          }
+        ]
       };
     }
   },
 
   up: {
-    description: "Run pulumi up for a given project and stack",
+    description: 'Run pulumi up for a given project and stack',
     schema: {
-      workDir: z.string().describe("The working directory of the program."),
+      workDir: z.string().describe('The working directory of the program.'),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'.")
     },
     handler: async (args: UpArgs) => {
       const stackArgs: automation.LocalProgramArgs = {
-        stackName: args.stackName ?? "dev",
-        workDir: args.workDir,
+        stackName: args.stackName ?? 'dev',
+        workDir: args.workDir
       };
 
       const stack = await automation.LocalWorkspace.createOrSelectStack(stackArgs);
@@ -78,14 +80,15 @@ ${previewResult.stdout || 'No additional output'}
         `Create: ${changes.create}`,
         `Update: ${changes.update}`,
         `Delete: ${changes.delete}`,
-        `Same: ${changes.same}`,
+        `Same: ${changes.same}`
       ].join('\n');
 
       return {
-        description: "Pulumi Up Results",
-        content: [{ 
-          type: "text" as const, 
-          text: `
+        description: 'Pulumi Up Results',
+        content: [
+          {
+            type: 'text' as const,
+            text: `
 Deployment Results for stack: ${stack.name}
 
 Changes:
@@ -93,22 +96,23 @@ ${changesSummary}
 
 ${upResult.stdout || 'No additional output'}
 `
-        }]
+          }
+        ]
       };
     }
   },
 
   'stack-output': {
-    description: "Get the output value(s) of a given stack",
+    description: 'Get the output value(s) of a given stack',
     schema: {
-      workDir: z.string().describe("The working directory of the program."),
+      workDir: z.string().describe('The working directory of the program.'),
       stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'."),
-      outputName: z.string().optional().describe("The specific stack output name to retrieve.")
+      outputName: z.string().optional().describe('The specific stack output name to retrieve.')
     },
     handler: async (args: { workDir: string; stackName?: string; outputName?: string }) => {
       const stackArgs: automation.LocalProgramArgs = {
-        stackName: args.stackName ?? "dev",
-        workDir: args.workDir,
+        stackName: args.stackName ?? 'dev',
+        workDir: args.workDir
       };
 
       const stack = await automation.LocalWorkspace.selectStack(stackArgs);
@@ -131,7 +135,7 @@ ${upResult.stdout || 'No additional output'}
         }
       } else {
         // Return all outputs
-        description = "Pulumi Stack Outputs";
+        description = 'Pulumi Stack Outputs';
         outputContent = Object.entries(outputs)
           .map(([key, value]) => `${key}: ${JSON.stringify(value.value)}`)
           .join('\\n');
@@ -142,15 +146,17 @@ ${upResult.stdout || 'No additional output'}
 
       return {
         description: description,
-        content: [{ 
-          type: "text" as const, 
-          text: `
+        content: [
+          {
+            type: 'text' as const,
+            text: `
 Stack: ${stack.name}
 
 ${outputContent}
 `
-        }]
+          }
+        ]
       };
     }
   }
-}; 
+};
