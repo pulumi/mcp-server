@@ -65,7 +65,6 @@ export const registryCommands = function (cacheDir: string) {
       },
       handler: async (args: GetResourceArgs) => {
         const schema = await getSchema(args.provider);
-
         // Find the resource entry [key, data] directly
         const resourceEntry = Object.entries(schema.resources).find(([key]) => {
           const [, modulePath, resourceName] = key.split(':');
