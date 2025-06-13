@@ -1,5 +1,16 @@
 {
     "name": "test",
+    "types": {
+        "test:test:TestReferenceProperty": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name of the property"
+                }
+            },
+            "type": "object"
+        }
+    },
     "resources": {
         "test:test:Test": {
             "description": "A test resource for unit testing",
