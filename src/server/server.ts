@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cliCommands } from '../pulumi/cli.js';
 import { logger } from '../logging/logging.js';
+import { deployCommands, deployPrompts } from '../deploy/deploy.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -70,6 +71,31 @@ export class Server extends McpServer {
           return await command.handler(args);
         } catch (error) {
           return handleError(error, toolName);
+        }
+      });
+    });
+
+    // Register deploy commands
+    Object.entries(deployCommands).forEach(([commandName, command]) => {
+      const toolName = commandName;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.tool(toolName, command.description, command.schema, async (args: any) => {
+        try {
+          return await command.handler(args);
+        } catch (error) {
+          return handleError(error, toolName);
+        }
+      });
+    });
+
+    // Register deploy prompts
+    Object.entries(deployPrompts).forEach(([promptName, prompt]) => {
+      this.prompt(promptName, {}, async () => {
+        try {
+          return await prompt.handler();
+        } catch (error) {
+          logger.error(`Error in prompt ${promptName}:`, error);
+          throw error;
         }
       });
     });
