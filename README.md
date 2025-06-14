@@ -121,6 +121,23 @@ The server exposes handlers for the following Pulumi operations, callable via MC
     *   `provider` (string, required): The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or `github.com/org/repo` for Git-hosted components.
     *   `module` (string, optional): The module to filter by (e.g., 's3', 'ec2', 'lambda').
 
+## Local Development/Testing
+
+For local development or testing, you can use the provided scripts:
+
+```bash
+# Build the project
+npm run build
+
+# Install the MCP server locally for testing
+./install-mcp.sh
+
+# Remove the local installation
+./uninstall-mcp.sh
+```
+
+The install script will remove any existing `pulumi-mcp-local` installation and install the current version from your local directory for testing with Claude Code.
+
 ## Development
 
 1.  Clone the repository.
