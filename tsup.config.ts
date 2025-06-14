@@ -10,5 +10,6 @@ export default defineConfig({
     target: "ES2022",
     banner: {
         js: '#!/usr/bin/env node'
-    }
+    },
+    publicDir: "src/prompts"
 })

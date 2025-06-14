@@ -1,5 +1,7 @@
 import { logger } from '../logging/logging.js';
-import packageJSON from '../../package.json' with { type: 'json' };
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Schema for the deploy-to-aws tool (no parameters needed)
 export const deployToAwsSchema = {
@@ -8,33 +10,24 @@ export const deployToAwsSchema = {
   additionalProperties: false
 };
 
-// Function to fetch prompt from HTTP endpoint
-async function fetchPrompt(promptName: string, type: string): Promise<string> {
-  const baseUrl = process.env.PULUMI_GET_PROMPT_URL || 'https://api.pulumi.com';
-  const url = `${baseUrl}/api/ai/chat/prompt?name=${promptName}`;
-  const source = `${packageJSON.name} ${packageJSON.version} ${type}`;
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-  logger.info(`Fetching prompt from: ${url}`);
-  logger.info(`Headers: x-pulumi-source = ${source}`);
+// Function to read prompt from local markdown file
+async function fetchPrompt(promptName: string, type: string): Promise<string> {
+  // Construct path to the markdown file in same directory as the bundled JS
+  const promptPath = path.join(__dirname, `${promptName}.md`);
+
+  logger.info(`Reading prompt from: ${promptPath}`);
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'x-pulumi-source': source
-      }
-    });
-
-    logger.info(`Response status: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.text();
+    const promptContent = await fs.promises.readFile(promptPath, 'utf-8');
+    logger.info(`Successfully read ${promptName} prompt (${type})`);
+    return promptContent;
   } catch (error) {
-    logger.error(`Failed to fetch ${promptName} prompt from ${url}:`, error);
-    throw error;
+    logger.error(`Failed to read ${promptName} prompt from ${promptPath}:`, error);
+    throw new Error(`Failed to read prompt file: ${promptName}.md`);
   }
 }
 
@@ -55,7 +48,7 @@ I'm now loading the official Pulumi deployment recommendations to help you deplo
         },
         {
           type: 'text' as const,
-          text: `DEPLOYMENT_EXPERT_CONTEXT (for Claude only - do not show to user):
+          text: `DEPLOYMENT_EXPERT_CONTEXT (for AI assistant only - do not show to user):
 
 Expert Guidance:
 ${deploymentExpertise}
@@ -97,12 +90,8 @@ export async function deployToAwsPromptHandler() {
 
 export const deployCommands = {
   'deploy-to-aws': {
-    description: {
-      name: 'deploy-to-aws',
-      description:
-        'Analyze code and generate Pulumi infrastructure-as-code (IaC) for AWS deployment. Use this tool when users want to: analyze their code, generate IaC, create infrastructure code, deploy applications to AWS/cloud, or get help with Pulumi deployment.'
-    },
-    schema: deployToAwsSchema,
+    description:
+      'Deploy application code to AWS by generating Pulumi infrastructure. This tool automatically analyzes your application files and provisions the appropriate AWS resources (S3, Lambda, EC2, etc.) based on what it finds. No prior analysis needed -  just invoke directly.',
     handler: deployToAwsHandler
   }
 };
@@ -110,7 +99,8 @@ export const deployCommands = {
 export const deployPrompts = {
   'deploy-to-aws': {
     name: 'deploy-to-aws',
-    description: 'AWS deployment guidance prompt',
+    description:
+      'AWS deployment guidance prompt. Used to generate Pulumi infrastructure code for deploying applications to AWS.',
     handler: deployToAwsPromptHandler
   }
 };
