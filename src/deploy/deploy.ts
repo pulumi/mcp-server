@@ -72,9 +72,9 @@ IMPORTANT: Start your response by acknowledging that you've loaded the official 
   }
 }
 
-// Deploy to AWS prompt handler
-export async function deployToAwsPromptHandler() {
-  const promptText = await fetchPrompt('deploy-to-aws', 'prompt');
+// Generic prompt handler
+export async function promptHandler(promptName: string) {
+  const promptText = await fetchPrompt(promptName, 'prompt');
   return {
     messages: [
       {
@@ -101,6 +101,6 @@ export const deployPrompts = {
     name: 'deploy-to-aws',
     description:
       'AWS deployment guidance prompt. Used to generate Pulumi infrastructure code for deploying applications to AWS.',
-    handler: deployToAwsPromptHandler
+    handler: () => promptHandler('deploy-to-aws')
   }
 };
