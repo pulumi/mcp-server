@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Function to read prompt from local markdown file
-async function fetchPrompt(promptName: string, type: string): Promise<string> {
+async function getPrompt(promptName: string, type: string): Promise<string> {
   // Construct path to the markdown file in same directory as the bundled JS
   const promptPath = path.join(__dirname, `${promptName}.md`);
 
@@ -27,7 +27,7 @@ async function fetchPrompt(promptName: string, type: string): Promise<string> {
 // Deploy to AWS tool handler
 export async function deployToAwsHandler() {
   try {
-    const deploymentExpertise = await fetchPrompt('deploy-to-aws', 'tool');
+    const deploymentExpertise = await getPrompt('deploy-to-aws', 'tool');
 
     return {
       content: [
@@ -53,12 +53,12 @@ IMPORTANT: Start your response by acknowledging that you've loaded the official 
       ]
     };
   } catch (error) {
-    logger.error(`Failed to fetch deployment guide:`, error);
+    logger.error(`Cannot find deployment guide:`, error);
     return {
       content: [
         {
           type: 'text' as const,
-          text: `❌ Error loading official Pulumi deployment expertise. Failed to fetch from remote endpoint.`
+          text: `❌ Error loading official Pulumi deployment expertise. Check your installation.`
         }
       ]
     };
@@ -67,7 +67,7 @@ IMPORTANT: Start your response by acknowledging that you've loaded the official 
 
 // Generic prompt handler
 export async function promptHandler(promptName: string) {
-  const promptText = await fetchPrompt(promptName, 'prompt');
+  const promptText = await getPrompt(promptName, 'prompt');
   return {
     messages: [
       {
