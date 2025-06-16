@@ -3,13 +3,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Schema for the deploy-to-aws tool (no parameters needed)
-export const deployToAwsSchema = {
-  type: 'object' as const,
-  properties: {},
-  additionalProperties: false
-};
-
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,6 +85,7 @@ export const deployCommands = {
   'deploy-to-aws': {
     description:
       'Deploy application code to AWS by generating Pulumi infrastructure. This tool automatically analyzes your application files and provisions the appropriate AWS resources (S3, Lambda, EC2, etc.) based on what it finds. No prior analysis needed -  just invoke directly.',
+    schema: {},
     handler: deployToAwsHandler
   }
 };
