@@ -158,5 +158,49 @@ ${outputContent}
         ]
       };
     }
+  },
+
+  refresh: {
+    description: 'Run pulumi refresh for a given project and stack',
+    schema: {
+      workDir: z.string().describe('The working directory of the program.'),
+      stackName: z.string().optional().describe("The associated stack name. Defaults to 'dev'.")
+    },
+    handler: async (args: { workDir: string; stackName?: string }) => {
+      const stackArgs: automation.LocalProgramArgs = {
+        stackName: args.stackName ?? 'dev',
+        workDir: args.workDir
+      };
+
+      const stack = await automation.LocalWorkspace.createOrSelectStack(stackArgs);
+
+      // Run refresh
+      const refreshResult = await stack.refresh();
+
+      // Format the changes
+      const changes = refreshResult.summary.resourceChanges!;
+      const changesSummary = [
+        `Update: ${changes.update}`,
+        `Delete: ${changes.delete}`,
+        `Same: ${changes.same}`
+      ].join('\n');
+
+      return {
+        description: 'Pulumi Refresh Results',
+        content: [
+          {
+            type: 'text' as const,
+            text: `
+Refresh Results for stack: ${stack.name}
+
+Changes:
+${changesSummary}
+
+${refreshResult.stdout || 'No additional output'}
+`
+          }
+        ]
+      };
+    }
   }
 };
