@@ -14,7 +14,19 @@ This package allows MCP clients to perform Pulumi operations like retrieving pac
 
 The Pulumi CLI has to be installed on you machine.
 
-This package is primarily intended to be integrated into applications that can use MCP servers as AI tools. For example, here is how you can include Pulumi MCP Server in Claude desktop's MCP configuration file:
+This package is primarily intended to be integrated into applications that can use MCP servers as AI tools.
+
+### Claude Code
+
+For [Claude Code](https://claude.ai/code), you can install this MCP server using:
+
+```bash
+claude mcp add -s user pulumi -- npx @pulumi/mcp-server@latest stdio
+```
+
+### Claude Desktop
+
+For Claude Desktop, you can include Pulumi MCP Server in the MCP configuration file:
 
 ```json
 {
@@ -121,29 +133,47 @@ The server exposes handlers for the following Pulumi operations, callable via MC
     *   `provider` (string, required): The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or `github.com/org/repo` for Git-hosted components.
     *   `module` (string, optional): The module to filter by (e.g., 's3', 'ec2', 'lambda').
 
-## Local Development/Testing
-
-For local development or testing, you can use the provided scripts:
-
-```bash
-# Build the project
-npm run build
-
-# Install the MCP server locally for testing
-./install-mcp.sh
-
-# Remove the local installation
-./uninstall-mcp.sh
-```
-
-The install script will remove any existing `pulumi-mcp-local` installation and install the current version from your local directory for testing with Claude Code.
-
 ## Development
 
 1.  Clone the repository.
 2.  Install dependencies: `make ensure`
 3.  Build the project: `make build`
 4.  Test the project: `make test`
+
+### Local Testing
+
+For local testing using Claude Code, you can use the provided scripts:
+
+```bash
+# Build the project
+npm run build
+
+# Install the MCP server locally for testing
+./scripts/install-mcp.sh
+
+# Or install from a packed .tgz file (created with npm pack)
+npm pack
+./scripts/install-mcp.sh pulumi-mcp-server-0.1.2.tgz
+
+# Remove the local installation
+./scripts/uninstall-mcp.sh
+```
+
+The install script will remove any existing `pulumi-mcp-local` installation and install the current version from your local directory. Optionally, you can provide a `.tgz` file created with `npm pack` to test the packaged version. Run Claude Code and type the `/mcp` command to see it.
+
+### List existing tools
+
+Use MCP Inspector to list the existing tools and their metadata:
+
+```bash
+npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/list
+```
+
+Use MCP Inspector to list the existing prompts and their metadata:
+
+```bash
+npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method prompts/list
+```
 
 ## License
 
