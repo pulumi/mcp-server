@@ -26,20 +26,26 @@ type GetResourceArgs = {
   provider: string;
   module?: string;
   resource: string;
+  version?: string;
 };
 
 type ListResourcesArgs = {
   provider: string;
   module?: string;
+  version?: string;
 };
 
 export const registryCommands = function (cacheDir: string) {
   // Function to get schema with caching
-  async function getSchema(provider: string): Promise<Schema> {
-    const cacheFile = path.join(cacheDir, `${provider.replace(/[^a-zA-Z0-9]/g, '_')}_schema.json`);
+  async function getSchema(provider: string, version?: string): Promise<Schema> {
+    const providerWithVersion = version ? `${provider}@${version}` : provider;
+    const cacheFile = path.join(
+      cacheDir,
+      `${providerWithVersion.replace(/[^a-zA-Z0-9]/g, '_')}_schema.json`
+    );
 
     if (!fs.existsSync(cacheFile)) {
-      execSync(`pulumi package get-schema ${provider} >> ${cacheFile}`);
+      execSync(`pulumi package get-schema ${providerWithVersion} >> ${cacheFile}`);
     }
     return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
   }
@@ -61,10 +67,16 @@ export const registryCommands = function (cacheDir: string) {
           ),
         resource: z
           .string()
-          .describe("The resource type to query (e.g., 'Bucket', 'Function', 'Instance')")
+          .describe("The resource type to query (e.g., 'Bucket', 'Function', 'Instance')"),
+        version: z
+          .string()
+          .optional()
+          .describe(
+            "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
+          )
       },
       handler: async (args: GetResourceArgs) => {
-        const schema = await getSchema(args.provider);
+        const schema = await getSchema(args.provider, args.version);
         // Find the resource entry [key, data] directly
         const resourceEntry = Object.entries(schema.resources).find(([key]) => {
           const [, modulePath, resourceName] = key.split(':');
@@ -122,10 +134,16 @@ export const registryCommands = function (cacheDir: string) {
         module: z
           .string()
           .optional()
-          .describe("Optional module to filter by (e.g., 's3', 'ec2', 'lambda')")
+          .describe("Optional module to filter by (e.g., 's3', 'ec2', 'lambda')"),
+        version: z
+          .string()
+          .optional()
+          .describe(
+            "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
+          )
       },
       handler: async (args: ListResourcesArgs) => {
-        const schema = await getSchema(args.provider);
+        const schema = await getSchema(args.provider, args.version);
 
         // Filter and format resources
         const resources = Object.entries(schema.resources)
