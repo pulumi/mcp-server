@@ -29,7 +29,7 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   describe('Tool Invocation', () => {
     it('should successfully invoke deploy-to-aws tool with no parameters', async function () {
-      this.timeout(10000); // 10 second timeout for MCP inspector
+      this.timeout(30000); // 30 second timeout for MCP inspector
 
       try {
         const { stdout } = await execAsync(inspectorCommand);
@@ -62,7 +62,7 @@ describe('MCP Tool: deploy-to-aws', () => {
     });
 
     it('should fail when called with extra unneeded arguments', async function () {
-      this.timeout(10000); // 10 second timeout for MCP inspector
+      this.timeout(30000); // 30 second timeout for MCP inspector
 
       const inspectorCommandWithArgs = `${inspectorCommand} --tool-arg extraParam=notNeeded`;
 
@@ -90,7 +90,7 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   describe('Tool Metadata', () => {
     it('should list deploy-to-aws as an available tool', async function () {
-      this.timeout(10000); // 10 second timeout for MCP inspector
+      this.timeout(30000); // 30 second timeout for MCP inspector
 
       const listToolsCommand =
         'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/list';
@@ -124,7 +124,7 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   describe('Prompt Metadata', () => {
     it('should list deploy-to-aws as an available prompt', async function () {
-      this.timeout(10000); // 10 second timeout for MCP inspector
+      this.timeout(30000); // 30 second timeout for MCP inspector
 
       const listPromptsCommand =
         'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method prompts/list';
