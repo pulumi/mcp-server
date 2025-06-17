@@ -10,16 +10,9 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   before(async function () {
     this.timeout(30000); // 30 second timeout for build process
-    
+
     // Set test mode environment variable
     process.env.MCP_TEST_MODE = 'true';
-
-    // Ensure the project is built before running tests
-    try {
-      await execAsync('npm run build');
-    } catch {
-      console.warn('Build command failed, continuing with existing dist files');
-    }
   });
 
   after(() => {

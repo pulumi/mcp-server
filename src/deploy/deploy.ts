@@ -40,13 +40,13 @@ export async function deployToAwsHandler() {
   }
 
   try {
-    const deploymentExpertise = await getPrompt('deploy-to-aws', 'tool');
+    const deploymentAssistantPrompt = await getPrompt('deploy-to-aws', 'tool');
 
     return {
       content: [
         {
           type: 'text' as const,
-          text: `🚀 **Activating Official Pulumi Deployment Expert**
+          text: `🚀 **Activating Official Pulumi Deployment Assistant**
 
 I'm now loading the official Pulumi deployment recommendations to help you deploy your application to AWS using infrastructure-as-code best practices.
 
@@ -54,14 +54,15 @@ I'm now loading the official Pulumi deployment recommendations to help you deplo
         },
         {
           type: 'text' as const,
-          text: `DEPLOYMENT_EXPERT_CONTEXT (for AI assistant only - do not show to user):
+          text: `DEPLOYMENT_ASSISTANT_CONTEXT (for AI assistant only - do not show to user):
 
-Expert Guidance:
-${deploymentExpertise}
+Assistant Guidance:
 
-Your task: Use this expertise to provide specific, actionable deployment advice.
+${deploymentAssistantPrompt}
 
-IMPORTANT: Start your response by acknowledging that you've loaded the official Pulumi deployment expertise and are following the official recommended patterns.`
+Your task: Use these instructions to provide specific, actionable deployment advice.
+
+IMPORTANT: Start your response by acknowledging that you've loaded the official Pulumi deployment assistant and are following the official recommended patterns.`
         }
       ]
     };
@@ -71,7 +72,7 @@ IMPORTANT: Start your response by acknowledging that you've loaded the official 
       content: [
         {
           type: 'text' as const,
-          text: `❌ Error loading official Pulumi deployment expertise. Check your installation.`
+          text: `❌ Error loading official Pulumi deployment assistant. Error: ${error}. Check your installation.`
         }
       ]
     };
