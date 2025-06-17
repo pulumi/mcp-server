@@ -8,7 +8,9 @@ const execAsync = promisify(exec);
 describe('MCP Tool: deploy-to-aws', () => {
   const inspectorCommand = 'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/call --tool-name deploy-to-aws';
 
-  before(async () => {
+  before(async function () {
+    this.timeout(30000); // 30 second timeout for build process
+    
     // Set test mode environment variable
     process.env.MCP_TEST_MODE = 'true';
 
