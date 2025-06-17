@@ -26,6 +26,19 @@ async function getPrompt(promptName: string, type: string): Promise<string> {
 
 // Deploy to AWS tool handler
 export async function deployToAwsHandler() {
+  // Check for test mode
+  if (process.env.MCP_TEST_MODE === 'true') {
+    logger.info('Running in test mode - returning mock response');
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: '✅ deploy-to-aws tool invoked successfully in test mode'
+        }
+      ]
+    };
+  }
+
   try {
     const deploymentExpertise = await getPrompt('deploy-to-aws', 'tool');
 
