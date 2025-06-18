@@ -132,6 +132,14 @@ The server exposes handlers for the following Pulumi operations, callable via MC
 *   **`list-resources`**: Lists available resources within a Pulumi provider package, optionally filtered by module.
     *   `provider` (string, required): The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or `github.com/org/repo` for Git-hosted components.
     *   `module` (string, optional): The module to filter by (e.g., 's3', 'ec2', 'lambda').
+*   **`deploy-to-aws`**: Deploy application code to AWS by generating Pulumi infrastructure. Automatically provisions AWS resources (S3, Lambda, EC2, etc.) based on application type.
+    *   No parameters required - the tool analyzes the current working directory to understand the application structure and generate appropriate infrastructure code.
+
+## Available Prompts
+
+The server also provides prompts that can be used by MCP clients:
+
+*   **`deploy-to-aws`**: AWS deployment guidance prompt that provides comprehensive instructions for analyzing application code and generating Pulumi infrastructure-as-code for AWS deployments. Includes best practices for security, cost optimization, and multi-environment setups.
 
 ## Development
 
