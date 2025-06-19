@@ -79,9 +79,9 @@ export class Server extends McpServer {
     Object.entries(deployCommands).forEach(([commandName, command]) => {
       const toolName = commandName;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      this.tool(toolName, command.description, command.schema, async (args: any) => {
+      this.tool(toolName, command.description, command.schema, async () => {
         try {
-          return await command.handler(args);
+          return await command.handler();
         } catch (error) {
           return handleError(error, toolName);
         }
@@ -90,7 +90,7 @@ export class Server extends McpServer {
 
     // Register deploy prompts
     Object.entries(deployPrompts).forEach(([promptName, prompt]) => {
-      this.prompt(promptName, {}, async () => {
+      this.prompt(promptName, prompt.description, {}, async () => {
         try {
           return await prompt.handler();
         } catch (error) {

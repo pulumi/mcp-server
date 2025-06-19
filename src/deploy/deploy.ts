@@ -107,8 +107,7 @@ export const deployCommands = {
 export const deployPrompts = {
   'deploy-to-aws': {
     name: 'deploy-to-aws',
-    description:
-      'AWS deployment guidance prompt. Used to generate Pulumi infrastructure code for deploying applications to AWS.',
+    description: 'Deploy application code to AWS by generating Pulumi infrastructure',
     handler: () => promptHandler('deploy-to-aws')
   }
 };
