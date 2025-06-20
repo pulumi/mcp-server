@@ -172,6 +172,140 @@ describe('Registry Commands', () => {
     });
   });
 
+  describe('getFunction handler', () => {
+    const commands = registryCommands(CACHE_DIR);
+
+    it('should return function information when function exists', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        function: 'getTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:getTest'
+      });
+      expect(Object.keys(jsonText)).to.have.all.members(['type', 'inputs', 'outputs']);
+    });
+
+    it('should handle functions in different modules', async () => {
+      const args = {
+        provider: 'test',
+        module: 'module',
+        function: 'getModuleTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:module:getModuleTest'
+      });
+      expect(result.content[0].type).to.equal('text');
+    });
+
+    it('should handle missing module parameter', async () => {
+      const args = {
+        provider: 'test',
+        function: 'getTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:getTest'
+      });
+    });
+
+    it('should find function in any module when module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        function: 'getModuleTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      expect(result.content[0].type).to.equal('text');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:module:getModuleTest'
+      });
+    });
+
+    it('should find function in complex module path', async () => {
+      const args = {
+        provider: 'test',
+        function: 'getComplexTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      expect(result.content[0].type).to.equal('text');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:complex/module:getComplexTest'
+      });
+    });
+
+    it('should find function in complex module path by main module name', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex',
+        function: 'getComplexTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      expect(result.content[0].type).to.equal('text');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:complex/module:getComplexTest'
+      });
+    });
+
+    it('should prefer exact module match when module is specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        function: 'getTest'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      expect(result.content[0].type).to.equal('text');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:getTest'
+      });
+    });
+
+    it('should handle non-existent functions with module specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        function: 'getNonExistent'
+      };
+
+      const result = await commands['get-function'].handler(args);
+
+      expect(result.description).to.equal('Returns information about a Pulumi Registry function');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('No information found for getNonExistent');
+      expect(result.content[0].text).to.include('You can call list-functions');
+    });
+  });
+
   describe('listResources handler', () => {
     const commands = registryCommands(CACHE_DIR);
 

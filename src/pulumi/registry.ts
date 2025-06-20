@@ -23,10 +23,25 @@ type TypeSchema = {
   required: string[];
 };
 
+type FunctionSchema = {
+  description: string;
+  inputs: {
+    description: string;
+    properties: Record<string, ResourceProperty>;
+    required?: string[];
+  };
+  outputs: {
+    description: string;
+    properties: Record<string, ResourceProperty>;
+    required?: string[];
+  };
+};
+
 type Schema = {
   name: string;
   resources: Record<string, ResourceSchema>;
   types: Record<string, TypeSchema>;
+  functions: Record<string, FunctionSchema>;
 };
 
 type GetResourceArgs = {
@@ -40,6 +55,13 @@ type GetTypeSchemaArgs = {
   provider: string;
   name: string;
   module?: string;
+  version?: string;
+};
+
+type GetFunctionArgs = {
+  provider: string;
+  module?: string;
+  function: string;
   version?: string;
 };
 
@@ -203,6 +225,80 @@ export const registryCommands = function (cacheDir: string) {
               {
                 type: 'text' as const,
                 text: `No information found for ${args.resource}${args.module ? ` in module ${args.module}` : ''}. You can call list-resources to get a list of resources` // Slightly improved message
+              }
+            ]
+          };
+        }
+      }
+    },
+
+    'get-function': {
+      description: 'Returns information about a Pulumi Registry function',
+      schema: {
+        provider: z
+          .string()
+          .describe(
+            "The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"
+          ),
+        module: z
+          .string()
+          .optional()
+          .describe(
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default."
+          ),
+        function: z
+          .string()
+          .describe("The function type to query (e.g., 'getBucket', 'getFunction', 'getInstance')"),
+        version: z
+          .string()
+          .optional()
+          .describe(
+            "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
+          )
+      },
+      handler: async (args: GetFunctionArgs) => {
+        const schema = await getSchema(args.provider, args.version);
+        // Find the resource entry [key, data] directly
+        const functionEntry = Object.entries(schema.functions).find(([key]) => {
+          const [, modulePath, resourceName] = key.split(':');
+          const mainModule = modulePath.split('/')[0];
+
+          if (args.module) {
+            // If module is provided, match module and resource name
+            return mainModule === args.module && resourceName === args.function;
+          } else {
+            // If no module provided, match resource name only
+            return resourceName === args.function;
+          }
+        });
+
+        if (functionEntry) {
+          const schema = functionEntry[1];
+          const functionName = functionEntry[0];
+          return {
+            description: 'Returns information about a Pulumi Registry function',
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  // for now leaving out:
+                  // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
+                  // - `properties`: contains a lot of duplicated properties with `inputProperties` and is probably less useful
+                  // - `required`: only needed if you return `properties`
+                  type: functionName,
+                  inputs: schema.inputs,
+                  outputs: schema.outputs
+                })
+              }
+            ]
+          };
+        } else {
+          return {
+            description: 'Returns information about a Pulumi Registry function', // Consider making this more specific, e.g., "Function not found"
+            content: [
+              {
+                type: 'text' as const,
+                text: `No information found for ${args.function}${args.module ? ` in module ${args.module}` : ''}. You can call list-functions to get a list of functions` // Slightly improved message
               }
             ]
           };
