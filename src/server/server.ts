@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { cliCommands } from '../pulumi/cli.js';
 import { logger } from '../logging/logging.js';
 import { deployCommands, deployPrompts } from '../deploy/deploy.js';
+import { convertPrompts } from '../pulumi/convert.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -90,7 +91,19 @@ export class Server extends McpServer {
 
     // Register deploy prompts
     Object.entries(deployPrompts).forEach(([promptName, prompt]) => {
-      this.prompt(promptName, prompt.description, {}, async () => {
+      this.prompt(promptName, prompt.description, async () => {
+        try {
+          return await prompt.handler();
+        } catch (error) {
+          logger.error(`Error in prompt ${promptName}:`, error);
+          throw error;
+        }
+      });
+    });
+
+    // Register convert prompts
+    Object.entries(convertPrompts).forEach(([promptName, prompt]) => {
+      this.prompt(promptName, prompt.description, async () => {
         try {
           return await prompt.handler();
         } catch (error) {
