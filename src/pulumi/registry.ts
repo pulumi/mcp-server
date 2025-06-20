@@ -3,34 +3,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 
-type ResourcePropertyItems = {
-  /**
-   * A reference to another type
-   */
-  $ref?: string;
-
-  /**
-   * The properties of an object type
-   */
-  properties?: { [key: string]: ResourcePropertyItems };
-
-  /**
-   * The simple type (i.e. string, number, etc)
-   */
-  type?: string;
-
-  /**
-   * A type with additional properties
-   */
-  additionalProperties?: ResourcePropertyItems;
-
-  description: string;
-};
-
 // Define schema types
 type ResourceProperty = {
-  items?: ResourcePropertyItems;
-} & ResourcePropertyItems;
+  type?: string;
+  description: string;
+};
 
 type ResourceSchema = {
   description: string;
@@ -165,6 +142,12 @@ export const registryCommands = function (cacheDir: string) {
         if (resourceEntry) {
           const schema = resourceEntry[1];
           const resourceName = resourceEntry[0];
+          const outputProperties: Record<string, ResourceProperty> = {};
+          for (const [key, value] of Object.entries(schema.properties)) {
+            if (!(key in schema.inputProperties)) {
+              outputProperties[key] = value;
+            }
+          }
           return {
             description: 'Returns information about a Pulumi Registry resource',
             content: [
@@ -177,7 +160,9 @@ export const registryCommands = function (cacheDir: string) {
                   // - `required`: only needed if you return `properties`
                   type: resourceName,
                   requiredInputs: schema.requiredInputs,
-                  inputProperties: schema.inputProperties
+                  inputProperties: schema.inputProperties,
+                  outputProperties: outputProperties,
+                  requiredOutputs: schema.required
                 })
               }
             ]

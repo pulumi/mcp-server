@@ -52,7 +52,9 @@ describe('Registry Commands', () => {
       expect(Object.keys(jsonText)).to.have.all.members([
         'type',
         'requiredInputs',
-        'inputProperties'
+        'inputProperties',
+        'outputProperties',
+        'requiredOutputs'
       ]);
     });
 
