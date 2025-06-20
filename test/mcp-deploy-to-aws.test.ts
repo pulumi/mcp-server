@@ -1,16 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect } from 'chai';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { listTools, listPrompts, callTool } from './helpers.js';
 
-const execAsync = promisify(exec);
-
-describe('MCP Tool: deploy-to-aws', () => {
-  const inspectorCommand = 'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/call --tool-name deploy-to-aws';
-
+describe('MCP Tool: deploy-to-aws', function () {
   before(async function () {
-    this.timeout(30000); // 30 second timeout for build process
-
     // Set test mode environment variable
     process.env.MCP_TEST_MODE = 'true';
   });
@@ -22,52 +15,24 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   describe('Tool Invocation', () => {
     it('should successfully invoke deploy-to-aws tool with no parameters', async function () {
-      this.timeout(30000); // 30 second timeout for MCP inspector
+      const response = await callTool('deploy-to-aws');
 
-      try {
-        const { stdout } = await execAsync(inspectorCommand);
+      // Validate response structure
+      expect(response.content).to.have.length.greaterThan(0);
+      const firstContent = response.content[0];
+      expect(firstContent.type).to.equal('text');
+      expect(firstContent.text).to.not.equal(undefined);
 
-        // Parse the JSON response
-        const response = JSON.parse(stdout);
-
-        // Validate response structure
-        expect(response).to.be.an('object');
-        expect(response).to.have.property('content');
-        expect(response.content).to.be.an('array');
-        expect(response.content).to.have.length.greaterThan(0);
-
-        // Validate content structure
-        const firstContent = response.content[0];
-        expect(firstContent).to.have.property('type', 'text');
-        expect(firstContent).to.have.property('text');
-
-        // Validate test mode response
-        expect(firstContent.text).to.include(
-          'deploy-to-aws tool invoked successfully in test mode'
-        );
-      } catch (error) {
-        if (error instanceof Error && 'stdout' in error) {
-          console.error('Command stdout:', (error as any).stdout);
-          console.error('Command stderr:', (error as any).stderr);
-        }
-        throw error;
-      }
+      // Validate test mode response
+      expect(firstContent.text).to.include('deploy-to-aws tool invoked successfully in test mode');
     });
 
     it('should fail when called with extra unneeded arguments', async function () {
-      this.timeout(30000); // 30 second timeout for MCP inspector
-
-      const inspectorCommandWithArgs = `${inspectorCommand} --tool-arg extraParam=notNeeded`;
-
       try {
-        const { stdout } = await execAsync(inspectorCommandWithArgs);
+        await callTool('deploy-to-aws', '--tool-arg extraParam=notNeeded');
 
-        // The command should fail or return an error response
-        // Either the process exits with error code or returns error in JSON
-        const response = JSON.parse(stdout);
-
-        // Check if there's an error in the response
-        expect(response).to.have.property('error');
+        // This should not be reached
+        expect.fail('The command should have failed but it succeeded.');
       } catch (error) {
         // This is expected - the command should fail with extra arguments
         // Verify it's the right kind of error (not a parsing error)
@@ -83,67 +48,26 @@ describe('MCP Tool: deploy-to-aws', () => {
 
   describe('Tool Metadata', () => {
     it('should list deploy-to-aws as an available tool', async function () {
-      this.timeout(30000); // 30 second timeout for MCP inspector
+      const response = await listTools();
 
-      const listToolsCommand =
-        'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/list';
+      // Find the deploy-to-aws tool
+      const deployTool = response.tools.find((tool) => tool.name === 'deploy-to-aws');
+      expect(deployTool).to.not.equal(undefined);
+      expect(deployTool?.description).to.include('Deploy application code to AWS');
 
-      try {
-        const { stdout } = await execAsync(listToolsCommand);
-        const response = JSON.parse(stdout);
-
-        expect(response).to.be.an('object');
-        expect(response).to.have.property('tools');
-        expect(response.tools).to.be.an('array');
-
-        // Find the deploy-to-aws tool
-        const deployTool = response.tools.find((tool: any) => tool.name === 'deploy-to-aws');
-        expect(deployTool).to.exist;
-        expect(deployTool).to.have.property('description');
-        expect(deployTool.description).to.include('Deploy application code to AWS');
-
-        // Verify it has empty schema (no parameters required)
-        expect(deployTool).to.have.property('inputSchema');
-        expect(deployTool.inputSchema).to.be.an('object');
-      } catch (error) {
-        if (error instanceof Error && 'stdout' in error) {
-          console.error('Command stdout:', (error as any).stdout);
-          console.error('Command stderr:', (error as any).stderr);
-        }
-        throw error;
-      }
+      // Verify it has empty schema (no parameters required)
+      expect(deployTool?.inputSchema).to.be.an('object');
     });
   });
 
   describe('Prompt Metadata', () => {
     it('should list deploy-to-aws as an available prompt', async function () {
-      this.timeout(30000); // 30 second timeout for MCP inspector
+      const response = await listPrompts();
 
-      const listPromptsCommand =
-        'npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method prompts/list';
-
-      try {
-        const { stdout } = await execAsync(listPromptsCommand);
-        const response = JSON.parse(stdout);
-
-        expect(response).to.be.an('object');
-        expect(response).to.have.property('prompts');
-        expect(response.prompts).to.be.an('array');
-
-        // Find the deploy-to-aws prompt
-        const deployPrompt = response.prompts.find(
-          (prompt: any) => prompt.name === 'deploy-to-aws'
-        );
-        expect(deployPrompt).to.exist;
-        expect(deployPrompt).to.have.property('name', 'deploy-to-aws');
-        expect(deployPrompt).to.have.property('arguments');
-      } catch (error) {
-        if (error instanceof Error && 'stdout' in error) {
-          console.error('Command stdout:', (error as any).stdout);
-          console.error('Command stderr:', (error as any).stderr);
-        }
-        throw error;
-      }
+      const deployPrompt = response.prompts.find((prompt) => prompt.name === 'deploy-to-aws');
+      expect(deployPrompt).to.not.equal(undefined);
+      expect(deployPrompt?.name).to.equal('deploy-to-aws');
+      expect(deployPrompt?.description).to.contain('Deploy application code to AWS');
     });
   });
 });

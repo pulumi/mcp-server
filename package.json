@@ -29,7 +29,7 @@
     "dev": "tsx watch src/index.ts stdio",
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "test": "NODE_OPTIONS='--loader ts-node/esm' mocha 'test/**/*.test.ts'",
+    "test": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 'test/**/*.test.ts'",
     "test:watch": "NODE_OPTIONS='--loader ts-node/esm' mocha --watch --watch-files test 'test/**/*.test.ts'",
     "inspector": " npx @modelcontextprotocol/inspector dist/index.js"
   },
