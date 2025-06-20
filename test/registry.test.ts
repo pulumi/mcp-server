@@ -357,6 +357,57 @@ describe('Registry Commands', () => {
     });
   });
 
+  describe('listFunctions handler', () => {
+    const commands = registryCommands(CACHE_DIR);
+
+    it('should list all functions for a provider with their modules', async () => {
+      const args = {
+        provider: 'test'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('Lists available Pulumi Registry functions');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Available functions for test:');
+      expect(result.content[0].text).to.include('getTest (test)');
+      expect(result.content[0].text).to.include('getAnotherTest (test)');
+      expect(result.content[0].text).to.include('getModuleTest (module)');
+      expect(result.content[0].text).to.include('getComplexTest (complex)');
+    });
+
+    it('should filter functions by main module name', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('Lists available Pulumi Registry functions');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include('Available functions for test/complex:');
+      expect(result.content[0].text).to.include('getComplexTest (complex)');
+      expect(result.content[0].text).to.not.include('getTest (test)');
+      expect(result.content[0].text).to.not.include('getModuleTest (module)');
+    });
+
+    it('should handle non-existent module', async () => {
+      const args = {
+        provider: 'test',
+        module: 'nonexistent'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('No functions found');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include(
+        `No functions found for provider 'test' in module 'nonexistent'`
+      );
+    });
+  });
+
   describe('getType handler', () => {
     const commands = registryCommands(CACHE_DIR);
     it('should find type in complex module path', async () => {
