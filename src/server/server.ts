@@ -103,9 +103,9 @@ export class Server extends McpServer {
 
     // Register convert prompts
     Object.entries(convertPrompts).forEach(([promptName, prompt]) => {
-      this.prompt(promptName, prompt.description, async () => {
+      this.prompt(promptName, prompt.description, prompt.args, async (args) => {
         try {
-          return await prompt.handler();
+          return await prompt.handler(args);
         } catch (error) {
           logger.error(`Error in prompt ${promptName}:`, error);
           throw error;

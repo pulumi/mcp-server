@@ -1709,11 +1709,11 @@ Before starting conversion, verify these patterns to prevent common errors:
 ## Your Task
 
 Convert the following Terraform configuration to Pulumi TypeScript. You MUST:
-1. **IMPORTANT**: Generate the converted TypeScript code in the folder specified by user request. If none is specified, create a folder named `pulumi`.
-2. Create all necessary project files in the same folder
-3. **Run `npm install` and `npx tsc --noEmit` to verify compilation**
+1. **IMPORTANT**: Generate the converted TypeScript code in the folder {{outputDir}}.
+2. Create all necessary project files in the same folder.
+3. Run `npm install` and `npx tsc --noEmit` to verify compilation.
 4. Initialize a Pulumi stack with `pulumi stack init dev`.
-5. **Run `pulumi preview` to validate Pulumi resources**
+5. Run `pulumi preview` to validate Pulumi resources.
 6. Fix any compilation or preview errors before considering the task complete
 
 Your output should include:

@@ -8,15 +8,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Function to read prompt from local markdown file
-export async function getPrompt(promptName: string, type: string): Promise<string> {
+export async function getPrompt(
+  promptName: string,
+  type: string,
+  args?: Record<string, string>
+): Promise<string> {
   // Construct path to the markdown file in same directory as the bundled JS
   const promptPath = path.join(__dirname, `${promptName}.md`);
 
   logger.info(`Reading prompt from: ${promptPath}`);
 
   try {
-    const promptContent = await fs.promises.readFile(promptPath, 'utf-8');
+    let promptContent = await fs.promises.readFile(promptPath, 'utf-8');
     logger.info(`Successfully read ${promptName} prompt (${type})`);
+    // Replace placeholders with actual values
+    if (args) {
+      Object.entries(args).forEach(([key, value]) => {
+        promptContent = promptContent.replace(`{{${key}}}`, value);
+      });
+    }
     return promptContent;
   } catch (error) {
     logger.error(`Failed to read ${promptName} prompt from ${promptPath}:`, error);
@@ -24,8 +34,8 @@ export async function getPrompt(promptName: string, type: string): Promise<strin
   }
 }
 
-export async function promptHandler(promptName: string) {
-  const promptText = await getPrompt(promptName, 'prompt');
+export async function promptHandler(promptName: string, args?: Record<string, string>) {
+  const promptText = await getPrompt(promptName, 'prompt', args);
   return {
     messages: [
       {
