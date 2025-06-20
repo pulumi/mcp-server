@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect } from 'chai';
 import { listPrompts } from './helpers.js';
 
