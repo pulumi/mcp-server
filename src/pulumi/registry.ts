@@ -39,6 +39,7 @@ type GetResourceArgs = {
 type GetTypeSchemaArgs = {
   provider: string;
   ref: string;
+  version?: string;
 };
 
 type ListResourcesArgs = {
@@ -71,10 +72,16 @@ export const registryCommands = function (cacheDir: string) {
           .describe(
             "The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"
           ),
+        version: z
+          .string()
+          .optional()
+          .describe(
+            "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
+          ),
         ref: z.string().describe("The type ref to query (e.g., 'aws:s3/BucketGrant:BucketGrant')")
       },
       handler: async (args: GetTypeSchemaArgs) => {
-        const schema = await getSchema(args.provider);
+        const schema = await getSchema(args.provider, args.version);
         const typeEntry = Object.entries(schema.types).find(([key]) => key === args.ref);
         if (typeEntry) {
           return {
