@@ -283,8 +283,6 @@ export const registryCommands = function (cacheDir: string) {
                 text: JSON.stringify({
                   // for now leaving out:
                   // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
-                  // - `properties`: contains a lot of duplicated properties with `inputProperties` and is probably less useful
-                  // - `required`: only needed if you return `properties`
                   type: functionName,
                   inputs: schema.inputs,
                   outputs: schema.outputs
