@@ -328,7 +328,7 @@ describe('Registry Commands', () => {
       expect(result.description).to.equal('Returns information about Pulumi Registry Types');
       expect(result.content[0].type).to.equal('text');
       expect(result.content[0].text).to.equal(
-        'No information found for NonExistentTypein module test'
+        'No information found for NonExistentType in module test'
       );
     });
   });

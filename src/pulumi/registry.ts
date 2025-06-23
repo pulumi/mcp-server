@@ -99,7 +99,7 @@ export const registryCommands = function (cacheDir: string) {
 
           if (args.module) {
             // If module is provided, match module and resource name
-            return mainModule === args.module && typeName == args.name;
+            return mainModule === args.module && typeName === args.name;
           } else {
             // If no module provided, match resource name only
             return typeName === args.name;
@@ -121,7 +121,7 @@ export const registryCommands = function (cacheDir: string) {
             content: [
               {
                 type: 'text' as const,
-                text: `No information found for ${args.name}${args.module ? `in module ${args.module}` : ''}`
+                text: `No information found for ${args.name}${args.module ? ` in module ${args.module}` : ''}`
               }
             ]
           };
