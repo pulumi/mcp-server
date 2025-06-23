@@ -82,6 +82,7 @@ export type GetFunctionData = {
   inputs: FunctionProperty;
   outputs: FunctionProperty;
 };
+type ListFunctionsArgs = ListResourcesArgs;
 
 export const registryCommands = function (cacheDir: string) {
   // Function to get schema with caching
@@ -417,10 +418,10 @@ export const registryCommands = function (cacheDir: string) {
             "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
           )
       },
-      handler: async (args: ListResourcesArgs) => {
+      handler: async (args: ListFunctionsArgs) => {
         const schema = await getSchema(args.provider, args.version);
 
-        // Filter and format resources
+        // Filter and format functions
         const functions = Object.entries(schema.functions)
           .filter(([key]) => {
             if (args.module) {
