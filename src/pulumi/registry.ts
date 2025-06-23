@@ -258,17 +258,17 @@ export const registryCommands = function (cacheDir: string) {
       },
       handler: async (args: GetFunctionArgs) => {
         const schema = await getSchema(args.provider, args.version);
-        // Find the resource entry [key, data] directly
+        // Find the function entry [key, data] directly
         const functionEntry = Object.entries(schema.functions).find(([key]) => {
-          const [, modulePath, resourceName] = key.split(':');
+          const [, modulePath, functionName] = key.split(':');
           const mainModule = modulePath.split('/')[0];
 
           if (args.module) {
-            // If module is provided, match module and resource name
-            return mainModule === args.module && resourceName === args.function;
+            // If module is provided, match module and function name
+            return mainModule === args.module && functionName === args.function;
           } else {
             // If no module provided, match resource name only
-            return resourceName === args.function;
+            return functionName === args.function;
           }
         });
 
