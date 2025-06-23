@@ -9,6 +9,33 @@
                 }
             },
             "type": "object"
+        },
+        "test:complex/module:ComplexType": {
+            "properties": {
+                "level": {
+                    "type": "number",
+                    "description": "The complexity level"
+                }
+            },
+            "type": "object"
+        },
+        "test:test:DuplicateType": {
+            "properties": {
+                "foo": {
+                    "type": "string",
+                    "description": "Foo property"
+                }
+            },
+            "type": "object"
+        },
+        "test:other:DuplicateType": {
+            "properties": {
+                "bar": {
+                    "type": "number",
+                    "description": "Bar property"
+                }
+            },
+            "type": "object"
         }
     },
     "resources": {

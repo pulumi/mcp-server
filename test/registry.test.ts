@@ -225,10 +225,82 @@ describe('Registry Commands', () => {
 
   describe('getType handler', () => {
     const commands = registryCommands(CACHE_DIR);
+    it('should find type in complex module path', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex',
+        name: 'ComplexType'
+      };
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          level: {
+            type: 'number',
+            description: 'The complexity level'
+          }
+        },
+        type: 'object'
+      });
+    });
+
+    it('should prefer exact module match when module is specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        name: 'DuplicateType'
+      };
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          foo: {
+            type: 'string',
+            description: 'Foo property'
+          }
+        },
+        type: 'object'
+      });
+    });
+    it('should return type information when type exists and module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        name: 'TestReferenceProperty'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The name of the property'
+          }
+        },
+        type: 'object'
+      });
+    });
+
+    it('should handle non-existent types when module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        name: 'NonExistentType'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.equal('No information found for NonExistentType');
+    });
+
     it('should return type information when type exists', async () => {
       const args = {
         provider: 'test',
-        ref: 'test:test:TestReferenceProperty'
+        module: 'test',
+        name: 'TestReferenceProperty'
       };
 
       const result = await commands['get-type'].handler(args);
@@ -248,13 +320,16 @@ describe('Registry Commands', () => {
     it('should handle non-existent types', async () => {
       const args = {
         provider: 'test',
-        ref: 'test:test:NonExistentType'
+        module: 'test',
+        name: 'NonExistentType'
       };
 
       const result = await commands['get-type'].handler(args);
       expect(result.description).to.equal('Returns information about Pulumi Registry Types');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.equal('No information found for test:test:NonExistentType');
+      expect(result.content[0].text).to.equal(
+        'No information found for NonExistentTypein module test'
+      );
     });
   });
 });

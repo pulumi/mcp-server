@@ -38,7 +38,8 @@ type GetResourceArgs = {
 
 type GetTypeSchemaArgs = {
   provider: string;
-  ref: string;
+  name: string;
+  module?: string;
   version?: string;
 };
 
@@ -72,17 +73,38 @@ export const registryCommands = function (cacheDir: string) {
           .describe(
             "The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"
           ),
+        module: z
+          .string()
+          .optional()
+          .describe(
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default."
+          ),
+        name: z
+          .string()
+          .describe(
+            "The name of the type to query (e.g., 'BucketGrant', 'FunctionEnvironment', 'InstanceCpuOptions')"
+          ),
         version: z
           .string()
           .optional()
           .describe(
             "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
-          ),
-        ref: z.string().describe("The type ref to query (e.g., 'aws:s3/BucketGrant:BucketGrant')")
+          )
       },
       handler: async (args: GetTypeSchemaArgs) => {
         const schema = await getSchema(args.provider, args.version);
-        const typeEntry = Object.entries(schema.types).find(([key]) => key === args.ref);
+        const typeEntry = Object.entries(schema.types).find(([key]) => {
+          const [, modulePath, typeName] = key.split(':');
+          const mainModule = modulePath.split('/')[0];
+
+          if (args.module) {
+            // If module is provided, match module and resource name
+            return mainModule === args.module && typeName == args.name;
+          } else {
+            // If no module provided, match resource name only
+            return typeName === args.name;
+          }
+        });
         if (typeEntry) {
           return {
             description: 'Returns information about Pulumi Registry Types',
@@ -99,7 +121,7 @@ export const registryCommands = function (cacheDir: string) {
             content: [
               {
                 type: 'text' as const,
-                text: `No information found for ${args.ref}`
+                text: `No information found for ${args.name}${args.module ? `in module ${args.module}` : ''}`
               }
             ]
           };
