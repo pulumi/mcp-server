@@ -267,7 +267,7 @@ export const registryCommands = function (cacheDir: string) {
             // If module is provided, match module and function name
             return mainModule === args.module && functionName === args.function;
           } else {
-            // If no module provided, match resource name only
+            // If no module provided, match function name only
             return functionName === args.function;
           }
         });
