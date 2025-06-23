@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { formatSchema,registryCommands } from '../src/pulumi/registry.js';
+import { registryCommands } from '../src/pulumi/registry.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -32,123 +32,6 @@ describe('Registry Commands', () => {
     });
   });
 
-  describe('formatSchema', () => {
-    it('should format schema with required and optional properties', () => {
-      const resourceKey = 'test:test:Test';
-      const resourceData = {
-        description: 'A test resource for unit testing',
-        properties: {
-          'id': {
-            type: 'string',
-            description: 'The unique identifier of the resource'
-          },
-          'name': {
-            type: 'string',
-            description: 'The name of the resource'
-          },
-          'arn': {
-            type: 'string',
-            description: 'The ARN of the resource'
-          }
-        },
-        required: ['id', 'arn'],
-        inputProperties: {
-          'name': {
-            type: 'string',
-            description: 'The name to give to the resource'
-          },
-          'tags': {
-            type: 'object',
-            description: 'Tags to apply to the resource'
-          }
-        },
-        requiredInputs: ['name']
-      };
-      
-      const formatted = formatSchema(resourceKey, resourceData);
-      
-      expect(formatted).to.include('Resource: test:test:Test');
-      expect(formatted).to.include('A test resource for unit testing');
-      expect(formatted).to.include('Input Properties:');
-      expect(formatted).to.include('name (string, required)');
-      expect(formatted).to.include('tags (object)');
-      expect(formatted).to.include('Output Properties:');
-      expect(formatted).to.include('id (string, always present)');
-      expect(formatted).to.include('arn (string, always present)');
-      expect(formatted).to.include('name (string)');
-    });
-
-    it('should format schema with different property types', () => {
-      const resourceKey = 'test:test:AnotherTest';
-      const resourceData = {
-        description: 'Another test resource with different properties',
-        properties: {
-          'id': {
-            type: 'string',
-            description: 'The unique identifier'
-          },
-          'value': {
-            type: 'number',
-            description: 'A numeric value'
-          }
-        },
-        required: ['id'],
-        inputProperties: {
-          'value': {
-            type: 'number',
-            description: 'The value to set'
-          },
-          'enabled': {
-            type: 'boolean',
-            description: 'Whether the resource is enabled'
-          }
-        },
-        requiredInputs: ['value', 'enabled']
-      };
-      
-      const formatted = formatSchema(resourceKey, resourceData);
-      
-      expect(formatted).to.include('Resource: test:test:AnotherTest');
-      expect(formatted).to.include('Another test resource with different properties');
-      expect(formatted).to.include('value (number, required)');
-      expect(formatted).to.include('enabled (boolean, required)');
-      expect(formatted).to.include('value (number)');
-    });
-
-    it('should format schema with no required inputs', () => {
-      const resourceKey = 'test:module:ModuleTest';
-      const resourceData = {
-        description: 'A test resource in a different module',
-        properties: {
-          'id': {
-            type: 'string',
-            description: 'The unique identifier'
-          },
-          'status': {
-            type: 'string',
-            description: 'The current status'
-          }
-        },
-        required: ['id', 'status'],
-        inputProperties: {
-          'config': {
-            type: 'object',
-            description: 'Configuration object'
-          }
-        },
-        requiredInputs: []
-      };
-      
-      const formatted = formatSchema(resourceKey, resourceData);
-      
-      expect(formatted).to.include('Resource: test:module:ModuleTest');
-      expect(formatted).to.include('A test resource in a different module');
-      expect(formatted).to.include('config (object)');
-      expect(formatted).to.include('id (string, always present)');
-      expect(formatted).to.include('status (string, always present)');
-    });
-  });
-
   describe('getResource handler', () => {
     const commands = registryCommands(CACHE_DIR);
 
@@ -159,12 +42,20 @@ describe('Registry Commands', () => {
         resource: 'Test'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
-      expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:test:Test');
-      expect(result.content[0].text).to.include('A test resource for unit testing');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:Test'
+      });
+      expect(Object.keys(jsonText)).to.have.all.members([
+        'type',
+        'requiredInputs',
+        'inputProperties',
+        'outputProperties',
+        'requiredOutputs'
+      ]);
     });
 
     it('should handle resources in different modules', async () => {
@@ -174,11 +65,14 @@ describe('Registry Commands', () => {
         resource: 'ModuleTest'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:module:ModuleTest'
+      });
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:module:ModuleTest');
     });
 
     it('should handle missing module parameter', async () => {
@@ -187,12 +81,13 @@ describe('Registry Commands', () => {
         resource: 'Test'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
-      expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:test:Test');
-      expect(result.content[0].text).to.include('A test resource for unit testing');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:Test'
+      });
     });
 
     it('should find resource in any module when module is not specified', async () => {
@@ -201,12 +96,14 @@ describe('Registry Commands', () => {
         resource: 'ModuleTest'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:module:ModuleTest');
-      expect(result.content[0].text).to.include('A test resource in a different module');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:module:ModuleTest'
+      });
     });
 
     it('should find resource in complex module path', async () => {
@@ -215,12 +112,14 @@ describe('Registry Commands', () => {
         resource: 'ComplexTest'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:complex/module:ComplexTest');
-      expect(result.content[0].text).to.include('A test resource in a complex module path');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:complex/module:ComplexTest'
+      });
     });
 
     it('should find resource in complex module path by main module name', async () => {
@@ -230,12 +129,14 @@ describe('Registry Commands', () => {
         resource: 'ComplexTest'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:complex/module:ComplexTest');
-      expect(result.content[0].text).to.include('A test resource in a complex module path');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:complex/module:ComplexTest'
+      });
     });
 
     it('should prefer exact module match when module is specified', async () => {
@@ -245,12 +146,14 @@ describe('Registry Commands', () => {
         resource: 'Test'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Resource: test:test:Test');
-      expect(result.content[0].text).to.include('A test resource for unit testing');
+      const jsonText = JSON.parse(result.content[0].text);
+      expect(jsonText).to.contain({
+        type: 'test:test:Test'
+      });
     });
 
     it('should handle non-existent resources with module specified', async () => {
@@ -260,12 +163,12 @@ describe('Registry Commands', () => {
         resource: 'NonExistent'
       };
 
-      const result = await commands["get-resource"].handler(args);
+      const result = await commands['get-resource'].handler(args);
 
-      expect(result.description).to.equal('Returns information about Pulumi Registry resources');
+      expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
       expect(result.content[0].text).to.include('No information found for NonExistent');
-      expect(result.content[0].text).to.include('Available resources:');
+      expect(result.content[0].text).to.include('You can call list-resources');
     });
   });
 
@@ -277,7 +180,7 @@ describe('Registry Commands', () => {
         provider: 'test'
       };
 
-      const result = await commands["list-resources"].handler(args);
+      const result = await commands['list-resources'].handler(args);
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
@@ -294,7 +197,7 @@ describe('Registry Commands', () => {
         module: 'complex'
       };
 
-      const result = await commands["list-resources"].handler(args);
+      const result = await commands['list-resources'].handler(args);
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
@@ -310,11 +213,123 @@ describe('Registry Commands', () => {
         module: 'nonexistent'
       };
 
-      const result = await commands["list-resources"].handler(args);
+      const result = await commands['list-resources'].handler(args);
 
       expect(result.description).to.equal('No resources found');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include(`No resources found for provider 'test' in module 'nonexistent'`);
+      expect(result.content[0].text).to.include(
+        `No resources found for provider 'test' in module 'nonexistent'`
+      );
+    });
+  });
+
+  describe('getType handler', () => {
+    const commands = registryCommands(CACHE_DIR);
+    it('should find type in complex module path', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex',
+        name: 'ComplexType'
+      };
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          level: {
+            type: 'number',
+            description: 'The complexity level'
+          }
+        },
+        type: 'object'
+      });
+    });
+
+    it('should prefer exact module match when module is specified', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        name: 'DuplicateType'
+      };
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          foo: {
+            type: 'string',
+            description: 'Foo property'
+          }
+        },
+        type: 'object'
+      });
+    });
+    it('should return type information when type exists and module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        name: 'TestReferenceProperty'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The name of the property'
+          }
+        },
+        type: 'object'
+      });
+    });
+
+    it('should handle non-existent types when module is not specified', async () => {
+      const args = {
+        provider: 'test',
+        name: 'NonExistentType'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.equal('No information found for NonExistentType');
+    });
+
+    it('should return type information when type exists', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        name: 'TestReferenceProperty'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(JSON.parse(result.content[0].text)).to.deep.equal({
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The name of the property'
+          }
+        },
+        type: 'object'
+      });
+    });
+
+    it('should handle non-existent types', async () => {
+      const args = {
+        provider: 'test',
+        module: 'test',
+        name: 'NonExistentType'
+      };
+
+      const result = await commands['get-type'].handler(args);
+      expect(result.description).to.equal('Returns information about Pulumi Registry Types');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.equal(
+        'No information found for NonExistentType in module test'
+      );
     });
   });
 });
