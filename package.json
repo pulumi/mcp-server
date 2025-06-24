@@ -31,12 +31,12 @@
     "build:watch": "tsup --watch",
     "test": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 'test/**/*.test.ts'",
     "test:watch": "NODE_OPTIONS='--loader ts-node/esm' mocha --watch --watch-files test 'test/**/*.test.ts'",
-    "test:unit": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 --grep '^(?!.*Claude API Integration)' 'test/**/*.test.ts'",
-    "test:integration": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 --grep 'Claude API Integration' 'test/**/*.test.ts'",
+    "test:unit": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 --grep '^(?!.*Claude Code SDK)' 'test/**/*.test.ts'",
+    "test:claude-code": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 60000 --grep 'Claude Code SDK' 'test/**/*.test.ts'",
     "inspector": " npx @modelcontextprotocol/inspector dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.54.0",
+    "@anthropic-ai/claude-code": "^1.0.33",
     "@modelcontextprotocol/sdk": "^1.11.1",
     "@pulumi/pulumi": "^3.169.0",
     "express": "^5.1.0",

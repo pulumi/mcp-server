@@ -1,6 +1,8 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { Anthropic } from '@anthropic-ai/sdk';
+import { query } from '@anthropic-ai/claude-code';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const execAsync = promisify(exec);
 
@@ -65,9 +67,9 @@ export function callTool(toolName: string, args?: string): Promise<ToolCallRespo
   return runInspectorCommand<ToolCallResponse>(command);
 }
 
-// Claude API integration testing interfaces
+// Claude Code SDK testing interface
 
-export interface ToolInvocationTest {
+export interface ClaudeCodeTest {
   query: string;
   expectedTool: string;
   description: string;
@@ -125,60 +127,68 @@ export const bucketName = bucket.id;`;
   }
 }
 
-// Claude API testing function
-export async function testToolInvocation(testCase: ToolInvocationTest): Promise<string> {
+
+// Claude Code SDK testing function
+export async function testClaudeCodeInvocation(testCase: ClaudeCodeTest): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is required for Claude API testing');
+    throw new Error(
+      'ANTHROPIC_API_KEY environment variable is required for Claude Code SDK testing'
+    );
   }
 
-  const client = new Anthropic({ apiKey });
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
 
-  // Create a realistic project context based on explicit context type
-  const contextMessage = getProjectContext(testCase.contextType);
+  // Create project context
+  const projectContext = getProjectContext(testCase.contextType);
 
-  const messages = [
-    {
-      role: 'user' as const,
-      content: contextMessage
-    },
-    {
-      role: 'user' as const,
-      content: testCase.query
+  let toolInvoked: string | null = null;
+  let toolFound = false;
+
+  try {
+    // Use Claude Code SDK to process the request
+    for await (const message of query({
+      prompt: `${projectContext}\n\n${testCase.query}`,
+      options: {
+        maxTurns: 1,
+        // Configure our MCP server
+        mcpServers: {
+          'pulumi-mcp': {
+            command: 'node',
+            args: [path.resolve(__dirname, '../dist/index.js'), 'stdio'],
+            env: {
+              MCP_TEST_MODE: 'true'
+            }
+          }
+        }
+      }
+    })) {
+      // Check for tool usage in the message
+      if (message.type === 'assistant') {
+        // Look for tool use in message
+        if ('message' in message && (message as any).message?.content) {
+          for (const item of (message as any).message.content) {
+            if (item.type === 'tool_use') {
+              toolInvoked = item.name;
+              toolFound = true;
+              console.log('✅ Tool invoked by Claude Code:', toolInvoked);
+              break;
+            }
+          }
+        }
+      }
+
+      if (toolFound) break;
     }
-  ];
+  } catch (error) {
+    console.error('Claude Code SDK error:', error);
+    throw error;
+  }
 
-  // Create a message that includes MCP server configuration
-  // This mimics the behavior of the MCP client when it invokes tools
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1000,
-    messages,
-    tools: await getMCPTools() // Get available tools from our MCP server
-  });
-
-  // Check if a tool was invoked
-  const toolUseContent = response.content.find((item: any) => item.type === 'tool_use');
-
-  if (toolUseContent && 'name' in toolUseContent) {
-    return (toolUseContent as any).name;
-  } else {
+  if (!toolInvoked) {
     throw new Error(`No tool was invoked for query: "${testCase.query}"`);
   }
-}
 
-// Helper to get MCP tools in Anthropic API format
-async function getMCPTools(): Promise<any[]> {
-  try {
-    const toolsResponse = await listTools();
-
-    return toolsResponse.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      input_schema: tool.inputSchema as any
-    }));
-  } catch (error) {
-    console.error('Failed to get MCP tools:', error);
-    return [];
-  }
+  return toolInvoked;
 }
