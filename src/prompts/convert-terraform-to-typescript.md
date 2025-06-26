@@ -465,9 +465,9 @@ module "vpc" {
 pulumi package add terraform-module terraform-aws-modules/vpc/aws 6.0.0 vpcmod
 ```
 
-This will generated a local SDK for the module under the name <PULUMI_NAME> and add it to the package.json.
+This will generate a local SDK for the module under the name <PULUMI_NAME> and add it to the package.json.
 
-**IMPORTANT** Make sure to add the package. This needs to be AFTER the project configuration files are created (package.json, tsconfig.json...) and `npm install` is run.
+**IMPORTANT** Make sure to add the package after project initialization. This command requires existing project configuration files (package.json, tsconfig.json) and should be run after `npm install`.
 
 2. Import and use the module in the Pulumi program.
 
