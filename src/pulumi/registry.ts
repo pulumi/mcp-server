@@ -84,6 +84,15 @@ export type GetFunctionData = {
 };
 type ListFunctionsArgs = ListResourcesArgs;
 
+export type ListResourcesData = {
+  type: string;
+  description: string;
+  name: string;
+  module: string;
+}[];
+
+export type ListFunctionsData = ListResourcesData;
+
 export const registryCommands = function (cacheDir: string) {
   // Function to get schema with caching
   async function getSchema(provider: string, version?: string): Promise<Schema> {
@@ -361,6 +370,7 @@ export const registryCommands = function (cacheDir: string) {
             const shortDescription =
               resource.description?.split('\n')[0].trim() ?? '<no description>';
             return {
+              type: key,
               name: resourceName,
               module: mainModule,
               description: shortDescription
@@ -381,18 +391,12 @@ export const registryCommands = function (cacheDir: string) {
           };
         }
 
-        const resourceList = resources
-          .map((r) => `- ${r.name} (${r.module})\n  ${r.description}`)
-          .join('\n\n');
-
         return {
           description: 'Lists available Pulumi Registry resources',
           content: [
             {
               type: 'text' as const,
-              text: args.module
-                ? `Available resources for ${args.provider}/${args.module}:\n\n${resourceList}`
-                : `Available resources for ${args.provider}:\n\n${resourceList}`
+              text: JSON.stringify(resources)
             }
           ]
         };
@@ -438,6 +442,7 @@ export const registryCommands = function (cacheDir: string) {
             // Trim description at first '#' character
             const shortDescription = func.description?.split('\n')[0].trim() ?? '<no description>';
             return {
+              type: key,
               name: functionName,
               module: mainModule,
               description: shortDescription
@@ -458,18 +463,12 @@ export const registryCommands = function (cacheDir: string) {
           };
         }
 
-        const functionList = functions
-          .map((r) => `- ${r.name} (${r.module})\n  ${r.description}`)
-          .join('\n\n');
-
         return {
           description: 'Lists available Pulumi Registry functions',
           content: [
             {
               type: 'text' as const,
-              text: args.module
-                ? `Available functions for ${args.provider}/${args.module}:\n\n${functionList}`
-                : `Available functions for ${args.provider}:\n\n${functionList}`
+              text: JSON.stringify(functions)
             }
           ]
         };
