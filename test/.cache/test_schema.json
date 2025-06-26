@@ -74,6 +74,29 @@
                 "required": ["id", "name"]
             }
         },
+        "test:other:getTest": {
+            "description": "Other test",
+            "inputs": {
+                "description": "Arguments for getTest",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the test resource to retrieve"
+                    }
+                },
+                "required": ["name"]
+            },
+            "outputs": {
+                "description": "The test resource information",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The unique identifier of the resource"
+                    }
+                },
+                "required": ["id"]
+            }
+        },
         "test:test:getAnotherTest": {
             "description": "Get information about another test resource with different properties",
             "inputs": {
@@ -181,6 +204,23 @@
                 "tags": {
                     "type": "object",
                     "description": "Tags to apply to the resource"
+                }
+            },
+            "requiredInputs": ["name"]
+        },
+        "test:other:Test": {
+            "description": "another test resource for unit testing",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier of the resource"
+                }
+            },
+            "required": ["id"],
+            "inputProperties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name to give to the resource"
                 }
             },
             "requiredInputs": ["name"]

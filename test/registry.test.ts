@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { registryCommands } from '../src/pulumi/registry.js';
+import { registryCommands, GetResourceData, GetFunctionData } from '../src/pulumi/registry.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -45,11 +45,10 @@ describe('Registry Commands', () => {
       const result = await commands['get-resource'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:Test'
-      });
-      expect(Object.keys(jsonText)).to.have.all.members([
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include('test:test:Test');
+      expect(Object.keys(jsonArray[0])).to.have.all.members([
         'type',
         'requiredInputs',
         'inputProperties',
@@ -68,10 +67,9 @@ describe('Registry Commands', () => {
       const result = await commands['get-resource'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:module:ModuleTest'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include('test:module:ModuleTest');
       expect(result.content[0].type).to.equal('text');
     });
 
@@ -84,10 +82,12 @@ describe('Registry Commands', () => {
       const result = await commands['get-resource'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:Test'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(2);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.have.all.members([
+        'test:test:Test',
+        'test:other:Test'
+      ]);
     });
 
     it('should find resource in any module when module is not specified', async () => {
@@ -100,10 +100,9 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:module:ModuleTest'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include('test:module:ModuleTest');
     });
 
     it('should find resource in complex module path', async () => {
@@ -116,10 +115,11 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:complex/module:ComplexTest'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include(
+        'test:complex/module:ComplexTest'
+      );
     });
 
     it('should find resource in complex module path by main module name', async () => {
@@ -133,10 +133,11 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:complex/module:ComplexTest'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include(
+        'test:complex/module:ComplexTest'
+      );
     });
 
     it('should prefer exact module match when module is specified', async () => {
@@ -150,10 +151,9 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry resource');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:Test'
-      });
+      const jsonArray: GetResourceData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetResourceData) => x.type)).to.include('test:test:Test');
     });
 
     it('should handle non-existent resources with module specified', async () => {
@@ -185,11 +185,10 @@ describe('Registry Commands', () => {
       const result = await commands['get-function'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:getTest'
-      });
-      expect(Object.keys(jsonText)).to.have.all.members(['type', 'inputs', 'outputs']);
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include('test:test:getTest');
+      expect(Object.keys(jsonArray[0])).to.have.all.members(['type', 'inputs', 'outputs']);
     });
 
     it('should handle functions in different modules', async () => {
@@ -202,10 +201,9 @@ describe('Registry Commands', () => {
       const result = await commands['get-function'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:module:getModuleTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include('test:module:getModuleTest');
       expect(result.content[0].type).to.equal('text');
     });
 
@@ -218,10 +216,12 @@ describe('Registry Commands', () => {
       const result = await commands['get-function'].handler(args);
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:getTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(2);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.have.all.members([
+        'test:test:getTest',
+        'test:other:getTest'
+      ]);
     });
 
     it('should find function in any module when module is not specified', async () => {
@@ -234,10 +234,9 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:module:getModuleTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include('test:module:getModuleTest');
     });
 
     it('should find function in complex module path', async () => {
@@ -250,10 +249,11 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:complex/module:getComplexTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include(
+        'test:complex/module:getComplexTest'
+      );
     });
 
     it('should find function in complex module path by main module name', async () => {
@@ -267,10 +267,11 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:complex/module:getComplexTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include(
+        'test:complex/module:getComplexTest'
+      );
     });
 
     it('should prefer exact module match when module is specified', async () => {
@@ -284,10 +285,9 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Returns information about a Pulumi Registry function');
       expect(result.content[0].type).to.equal('text');
-      const jsonText = JSON.parse(result.content[0].text);
-      expect(jsonText).to.contain({
-        type: 'test:test:getTest'
-      });
+      const jsonArray: GetFunctionData[] = JSON.parse(result.content[0].text);
+      expect(jsonArray).to.be.an('array').with.lengthOf(1);
+      expect(jsonArray.map((x: GetFunctionData) => x.type)).to.include('test:test:getTest');
     });
 
     it('should handle non-existent functions with module specified', async () => {

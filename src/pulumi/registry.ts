@@ -23,18 +23,16 @@ type TypeSchema = {
   required: string[];
 };
 
+type FunctionProperty = {
+  description: string;
+  properties: Record<string, ResourceProperty>;
+  required?: string[];
+};
+
 type FunctionSchema = {
   description: string;
-  inputs: {
-    description: string;
-    properties: Record<string, ResourceProperty>;
-    required?: string[];
-  };
-  outputs: {
-    description: string;
-    properties: Record<string, ResourceProperty>;
-    required?: string[];
-  };
+  inputs: FunctionProperty;
+  outputs: FunctionProperty;
 };
 
 type Schema = {
@@ -69,6 +67,20 @@ type ListResourcesArgs = {
   provider: string;
   module?: string;
   version?: string;
+};
+
+export type GetResourceData = {
+  type: string;
+  requiredInputs: string[];
+  inputProperties: Record<string, ResourceProperty>;
+  outputProperties: Record<string, ResourceProperty>;
+  requiredOutputs: string[];
+};
+
+export type GetFunctionData = {
+  type: string;
+  inputs: FunctionProperty;
+  outputs: FunctionProperty;
 };
 
 export const registryCommands = function (cacheDir: string) {
@@ -162,7 +174,7 @@ export const registryCommands = function (cacheDir: string) {
           .string()
           .optional()
           .describe(
-            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default."
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default. If not specified it may match a resources with the given name in any module"
           ),
         resource: z
           .string()
@@ -177,7 +189,7 @@ export const registryCommands = function (cacheDir: string) {
       handler: async (args: GetResourceArgs) => {
         const schema = await getSchema(args.provider, args.version);
         // Find the resource entry [key, data] directly
-        const resourceEntry = Object.entries(schema.resources).find(([key]) => {
+        const resourceEntry = Object.entries(schema.resources).filter(([key]) => {
           const [, modulePath, resourceName] = key.split(':');
           const mainModule = modulePath.split('/')[0];
 
@@ -190,31 +202,32 @@ export const registryCommands = function (cacheDir: string) {
           }
         });
 
-        if (resourceEntry) {
-          const schema = resourceEntry[1];
-          const resourceName = resourceEntry[0];
-          const outputProperties: Record<string, ResourceProperty> = {};
-          for (const [key, value] of Object.entries(schema.properties)) {
-            if (!(key in schema.inputProperties)) {
-              outputProperties[key] = value;
+        if (resourceEntry.length > 0) {
+          const resources: GetResourceData[] = resourceEntry.flatMap((entry) => {
+            const schema = entry[1];
+            const resourceName = entry[0];
+            const outputProperties: Record<string, ResourceProperty> = {};
+            for (const [key, value] of Object.entries(schema.properties)) {
+              if (!(key in schema.inputProperties)) {
+                outputProperties[key] = value;
+              }
             }
-          }
+            return {
+              // for now leaving out:
+              // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
+              type: resourceName,
+              requiredInputs: schema.requiredInputs,
+              inputProperties: schema.inputProperties,
+              outputProperties: outputProperties,
+              requiredOutputs: schema.required
+            };
+          });
           return {
             description: 'Returns information about a Pulumi Registry resource',
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  // for now leaving out:
-                  // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
-                  // - `properties`: contains a lot of duplicated properties with `inputProperties` and is probably less useful
-                  // - `required`: only needed if you return `properties`
-                  type: resourceName,
-                  requiredInputs: schema.requiredInputs,
-                  inputProperties: schema.inputProperties,
-                  outputProperties: outputProperties,
-                  requiredOutputs: schema.required
-                })
+                text: JSON.stringify(resources)
               }
             ]
           };
@@ -244,7 +257,7 @@ export const registryCommands = function (cacheDir: string) {
           .string()
           .optional()
           .describe(
-            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default."
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default. If not specified it may match functions with the given name in any module"
           ),
         function: z
           .string()
@@ -259,7 +272,7 @@ export const registryCommands = function (cacheDir: string) {
       handler: async (args: GetFunctionArgs) => {
         const schema = await getSchema(args.provider, args.version);
         // Find the function entry [key, data] directly
-        const functionEntry = Object.entries(schema.functions).find(([key]) => {
+        const functionEntry = Object.entries(schema.functions).filter(([key]) => {
           const [, modulePath, functionName] = key.split(':');
           const mainModule = modulePath.split('/')[0];
 
@@ -272,21 +285,24 @@ export const registryCommands = function (cacheDir: string) {
           }
         });
 
-        if (functionEntry) {
-          const schema = functionEntry[1];
-          const functionName = functionEntry[0];
+        if (functionEntry.length > 0) {
+          const functions: GetFunctionData[] = functionEntry.flatMap((entry) => {
+            const schema = entry[1];
+            const functionName = entry[0];
+            return {
+              // for now leaving out:
+              // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
+              type: functionName,
+              inputs: schema.inputs,
+              outputs: schema.outputs
+            };
+          });
           return {
             description: 'Returns information about a Pulumi Registry function',
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  // for now leaving out:
-                  // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
-                  type: functionName,
-                  inputs: schema.inputs,
-                  outputs: schema.outputs
-                })
+                text: JSON.stringify(functions)
               }
             ]
           };
