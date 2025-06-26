@@ -435,7 +435,75 @@ for (const [name, instance] of Object.entries(instances)) {
 }
 ```
 
-### 7. Module to Component Conversion
+### 7. Remote Modules to Pulumi Module Provider Conversion
+
+Usage of remote TF modules should be converted to the Pulumi Module provider.
+
+**IMPORTANT** For remote Terraform modules, prefer to use the Pulumi Module provider over converting the module itself. When the module is part
+of the program, prefer to convert it into a Pulumi component instead.
+
+```hcl
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "6.0.0"
+
+  name = "test-vpc"
+
+  cidr = "10.0.0.0/16"
+  azs  = ["us-west-2a", "us-west-2b"]
+
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+  public_subnets  = ["10.0.3.0/24", "10.0.4.0/24"]
+
+  enable_nat_gateway   = true
+  single_nat_gateway   = true
+}
+```
+1. Use `pulumi package add terraform-module <MODULE_SOURCE> <MODULE_VERSION> <PULUMI_NAME>` to add the module.
+
+```sh
+pulumi package add terraform-module terraform-aws-modules/vpc/aws 6.0.0 vpcmod
+```
+
+This will generate a local SDK for the module under the name <PULUMI_NAME> and add it to the package.json.
+
+**IMPORTANT** Make sure to add the package after project initialization. This command requires existing project configuration files (package.json, tsconfig.json) and should be run after `npm install`.
+
+2. Import and use the module in the Pulumi program.
+
+Example (TypeScript):
+
+```ts
+import * as pulumi from "@pulumi/pulumi";
+import * as vpcmod from "@pulumi/vpcmod";
+
+const vpc = new vpcmod.Module("test-vpc", {
+    azs: ["us-west-2a", "us-west-2b"],
+    name: `test-vpc-${pulumi.getStack()}`,
+    cidr: "10.0.0.0/16",
+    public_subnets: ["10.0.1.0/24", "10.0.2.0/24"],
+    private_subnets: ["10.0.3.0/24", "10.0.4.0/24"],
+    enable_nat_gateway: true,
+    single_nat_gateway: true,
+});
+```
+
+3. The module can also be configured with an existing cloud provider if necessary:
+```ts
+const awsProvider = new aws.Provider("awsprovider", {
+    region: "us-west-2",
+});
+
+const vpcmodProvider = new vpcmod.Provider("vpcprovider", {
+    "aws": awsProvider.terraformConfig().result
+});
+
+const vpc = new vpcmod.Module("test-vpc", {...}, {
+    provider: vpcmodProvider,
+});
+```
+
+### 8. Local Module to Component Conversion
 
 **IMPORTANT**: When converting Terraform modules to Pulumi components:
 1. Create components in separate files for better organization
@@ -545,7 +613,7 @@ export const vpcId = vpc.vpcId;
 export const publicSubnetIds = vpc.publicSubnetIds;
 ```
 
-### 7a. Advanced Conditional Logic Patterns
+### 8a. Advanced Conditional Logic Patterns
 
 For complex enterprise scenarios with multiple conditions and cross-resource dependencies:
 
@@ -710,7 +778,7 @@ export class NetworkSecurityComponent extends pulumi.ComponentResource {
 }
 ```
 
-### 7b. Dynamic Resource Creation Patterns
+### 8b. Dynamic Resource Creation Patterns
 
 When converting Terraform's `count` and `for_each` with complex conditions, use these patterns:
 
@@ -783,7 +851,7 @@ if (createInternetGateway) {
 const internetGatewayId = internetGateway ? internetGateway.id : pulumi.output(undefined);
 ```
 
-### 8. Output Handling
+### 9. Output Handling
 
 #### String Interpolation
 ```typescript
@@ -879,7 +947,7 @@ const deployment = new k8s.apps.v1.Deployment("app", {
 });
 ```
 
-### 9. Secret and Sensitive Data Handling
+### 10. Secret and Sensitive Data Handling
 
 **CRITICAL**: Use proper Pulumi patterns for secret handling:
 
@@ -961,7 +1029,7 @@ const subnetId = vpc.publicSubnets?.[0]?.id;
 const port = config.getNumber("port") ?? 3000;
 ```
 
-### 10. Type Declarations for Input Types
+### 11. Type Declarations for Input Types
 
 When declaring interface properties for maps/records, use the appropriate Input type pattern:
 
@@ -982,7 +1050,7 @@ interface ComponentArgs {
 // - Use {[key: string]: T} for simple, flat structures and when values themselves are Inputs
 ```
 
-### 11. Resource Option Merging with mergeOptions
+### 12. Resource Option Merging with mergeOptions
 
 When working with resource options in Pulumi components, use `pulumi.mergeOptions()` instead of the spread operator. This ensures proper handling of provider inheritance, dependencies, and other complex option merging scenarios.
 
@@ -1062,7 +1130,7 @@ const resourceOptions = pulumi.mergeOptions(
 );
 ```
 
-### 12. Tag Merging and Type-Safe Object Spreading
+### 13. Tag Merging and Type-Safe Object Spreading
 
 When converting Terraform's `merge()` function for tags, ensure type safety with proper null checks:
 
@@ -1123,7 +1191,7 @@ new aws.ec2.Instance("instance", {
 });
 ```
 
-### 12. Error Handling
+### 14. Error Handling
 ```typescript
 // Add validation
 if (!environment) {
@@ -1136,7 +1204,7 @@ function isProductionEnvironment(env: string): env is "production" {
 }
 ```
 
-### 13. Exports
+### 15. Exports
 **CRITICAL**: Always convert ALL Terraform outputs to Pulumi exports. Missing exports can break downstream dependencies.
 
 ```typescript
@@ -1162,7 +1230,7 @@ export const outputs = {
 };
 ```
 
-### 15. Documentation and Comments
+### 16. Documentation and Comments
 **Important**: Preserve the intent and structure of the original Terraform configuration through comments and file organization.
 
 **File Organization - Match Terraform Structure:**
