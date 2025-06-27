@@ -44,7 +44,7 @@ const namespace = new k8s.core.v1.Namespace("app-namespace", {
 });
 
 // Pattern for resource labels that should be updated
-const terraformToPublumiLabels = {
+const terraformToPulumiLabels = {
     "app.kubernetes.io/managed-by": "pulumi", // Always change terraform → pulumi
     "pulumi.com/stack": pulumi.getStack(),    // Add Pulumi-specific labels
     // Preserve all other labels from Terraform
@@ -86,60 +86,6 @@ new azure.authorization.RoleAssignment("sp-role", {
     principalId: servicePrincipal.objectId,
     principalType: azure.authorization.PrincipalType.ServicePrincipal,
 });
-```
-
-### AWS + AWS Organizations Pattern
-```typescript
-import * as aws from "@pulumi/aws";
-import * as awsx from "@pulumi/awsx";
-
-// Configure multiple AWS providers for different accounts/regions
-const mainProvider = new aws.Provider("main", {
-    region: "us-west-2",
-    // account configuration
-});
-
-const orgProvider = new aws.Provider("organizations", {
-    region: "us-east-1", // Organizations is global but uses us-east-1
-    // master account configuration
-});
-
-// Use different providers for different resources
-const account = new aws.organizations.Account("workload-account", {
-    name: "Workload Account",
-    email: "workload@company.com",
-}, { provider: orgProvider });
-
-const vpc = new aws.ec2.Vpc("workload-vpc", {
-    cidrBlock: "10.0.0.0/16",
-}, { provider: mainProvider });
-```
-
-### Multi-Cloud Pattern
-```typescript
-import * as aws from "@pulumi/aws";
-import * as azure from "@pulumi/azure-native";
-import * as gcp from "@pulumi/gcp";
-
-// Configure providers for each cloud
-const awsProvider = new aws.Provider("aws", {
-    region: "us-west-2",
-});
-
-const azureProvider = new azure.Provider("azure", {
-    location: "West US 2",
-});
-
-// Cross-cloud resource references
-const awsVpc = new aws.ec2.Vpc("aws-vpc", {
-    cidrBlock: "10.0.0.0/16",
-}, { provider: awsProvider });
-
-const azureVnet = new azure.network.VirtualNetwork("azure-vnet", {
-    addressSpace: { addressPrefixes: ["10.1.0.0/16"] },
-    location: "West US 2",
-    resourceGroupName: azureRg.name,
-}, { provider: azureProvider });
 ```
 
 ### 3. Provider Configuration
@@ -1416,7 +1362,7 @@ Before starting conversion, perform these validation steps:
    ```
 
 ### Baseline Evaluation
-⚠️ **CRITICAL**: Evaluate existing Pulumi examples before using as validation baseline:
+⚠️ **CRITICAL**: Evaluate converted Pulumi code before validating.
 
 #### Red Flags for Incomplete Baselines
 - **Significantly fewer resources** than Terraform (>20% gap indicates incomplete conversion)
@@ -1425,66 +1371,25 @@ Before starting conversion, perform these validation steps:
 - **Incomplete output structure** (missing critical exports)
 
 #### Baseline Quality Checklist
-```typescript
-// Use this checklist to evaluate existing examples:
-interface BaselineQuality {
-    resourceCount: {
-        terraform: number;
-        pulumi: number;
-        coveragePercent: number; // Should be >90%
-    };
-    outputCompleteness: {
-        terraformOutputs: string[];
-        pulumiExports: string[];
-        missingExports: string[];
-    };
-    componentArchitecture: {
-        hasProperComponents: boolean;
-        followsEnterprisePatterns: boolean;
-        hasCorrectInterfaces: boolean;
-    };
-}
-```
+Use this checklist to evaluate converted Pulumi code:
+- Matches the coverage of Terraform resources
+- Has all the terraform outputs exported
+- Has the correct component structure
+
 
 ### Validation Process
 
 #### 1. Primary Validation: Compare to Terraform Source
-```typescript
-// Validation should compare converted code to TERRAFORM source primarily
-const validationResult = {
-    resourceParity: "100%", // All TF resources have Pulumi equivalents
-    configurationAccuracy: "PASS", // Properties correctly mapped
-    outputCompleteness: "PASS", // All TF outputs exported
-    functionalParity: "PASS", // Same behavior expected
-};
-```
+- All TF resources have Pulumi equivalents
+- Properties correctly mapped
+- All TF outputs exported
+- Functional parity - same behaviour expected
 
 #### 2. Secondary Validation: Baseline Comparison (If Applicable)
-```typescript
-// Only use existing examples if they pass baseline quality checks
-if (existingExample.passes.baselineQuality) {
-    compareWithExisting(convertedCode, existingExample);
-} else {
-    reportBaselineIssues(existingExample, terraformSource);
-    // Document what's wrong with existing example:
-    // - Missing features not in Terraform
-    // - Different API structure than Terraform
-    // - Incomplete resource coverage
-}
-```
-
-#### 3. Error Classification
-```typescript
-enum ValidationErrorType {
-    CRITICAL_MISSING_RESOURCE = "Missing resource from Terraform",
-    CRITICAL_WRONG_CONFIG = "Incorrect property mapping",
-    CRITICAL_MISSING_OUTPUT = "Missing required output",
-    ERROR_BASELINE_INCOMPLETE = "Baseline example missing TF features",
-    ERROR_BASELINE_EXTRA_FEATURES = "Baseline has features not in TF",
-    WARNING_STYLE_DIFFERENCE = "Different but functionally equivalent",
-    WARNING_API_VERSION_DIFF = "Different provider API version used"
-}
-```
+Make sure the converted code passes the baseline quality checks. Report any issues like:
+- Missing features compared to Terraform
+- Different API structure than Terraform
+- Incomplete resource coverage
 
 ### Validation Reporting Format
 ```markdown
