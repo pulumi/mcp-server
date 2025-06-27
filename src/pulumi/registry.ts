@@ -174,7 +174,7 @@ export const registryCommands = function (cacheDir: string) {
           .string()
           .optional()
           .describe(
-            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default. If not specified it may match a resources with the given name in any module"
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). If not specified it will match resources with the given name in any module."
           ),
         resource: z
           .string()
@@ -257,7 +257,7 @@ export const registryCommands = function (cacheDir: string) {
           .string()
           .optional()
           .describe(
-            "The module to query (e.g., 's3', 'ec2', 'lambda'). Optional for smaller providers, will be 'index by default. If not specified it may match functions with the given name in any module"
+            "The module to query (e.g., 's3', 'ec2', 'lambda'). If not specified it will match functions with the given name in any module."
           ),
         function: z
           .string()
