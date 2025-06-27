@@ -1391,15 +1391,6 @@ Make sure the converted code passes the baseline quality checks. Report any issu
 - Different API structure than Terraform
 - Incomplete resource coverage
 
-#### 3. Error Classification
-- Missing resource from Terraform
-- Incorrect property mapping
-- Missing required output
-- Baseline example missing TF features
-- Different but functionally equivalent
-- Different provider API version used
-
-
 ### Validation Reporting Format
 ```markdown
 ## Conversion Validation Report
