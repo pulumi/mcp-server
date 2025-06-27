@@ -326,7 +326,7 @@ describe('Registry Commands', () => {
       expect(result.content[0].type).to.equal('text');
       const resources: ListResourcesData = JSON.parse(result.content[0].text);
       const names = resources.map((r) => r.name);
-      expect(names).to.deep.equal(['Test', 'AnotherTest', 'ModuleTest', 'ComplexTest']);
+      expect(names).to.deep.equal(['Test', 'Test', 'AnotherTest', 'ModuleTest', 'ComplexTest']);
     });
 
     it('should filter resources by main module name', async () => {
@@ -373,7 +373,13 @@ describe('Registry Commands', () => {
       expect(result.content[0].type).to.equal('text');
       const functions: ListFunctionsData = JSON.parse(result.content[0].text);
       const names = functions.map((f) => f.name);
-      expect(names).to.deep.equal(['getTest', 'getAnotherTest', 'getModuleTest', 'getComplexTest']);
+      expect(names).to.deep.equal([
+        'getTest',
+        'getTest',
+        'getAnotherTest',
+        'getModuleTest',
+        'getComplexTest'
+      ]);
     });
 
     it('should filter functions by main module name', async () => {
