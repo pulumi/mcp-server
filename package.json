@@ -1,6 +1,6 @@
 {
   "name": "@pulumi/mcp-server",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A server implementing the Model Context Protocol for Pulumi.",
   "author": "Pulumi Corporation",
   "license": "Apache-2.0",
