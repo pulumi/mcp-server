@@ -1,7 +1,13 @@
 import { expect } from 'chai';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { registryCommands, GetResourceData, GetFunctionData } from '../src/pulumi/registry.js';
+import {
+  registryCommands,
+  GetResourceData,
+  GetFunctionData,
+  ListFunctionsData,
+  ListResourcesData
+} from '../src/pulumi/registry.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -318,11 +324,9 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Available resources for test:');
-      expect(result.content[0].text).to.include('Test (test)');
-      expect(result.content[0].text).to.include('AnotherTest (test)');
-      expect(result.content[0].text).to.include('ModuleTest (module)');
-      expect(result.content[0].text).to.include('ComplexTest (complex)');
+      const resources: ListResourcesData = JSON.parse(result.content[0].text);
+      const names = resources.map((r) => r.name);
+      expect(names).to.deep.equal(['Test', 'Test', 'AnotherTest', 'ModuleTest', 'ComplexTest']);
     });
 
     it('should filter resources by main module name', async () => {
@@ -335,10 +339,8 @@ describe('Registry Commands', () => {
 
       expect(result.description).to.equal('Lists available Pulumi Registry resources');
       expect(result.content[0].type).to.equal('text');
-      expect(result.content[0].text).to.include('Available resources for test/complex:');
-      expect(result.content[0].text).to.include('ComplexTest (complex)');
-      expect(result.content[0].text).to.not.include('Test (test)');
-      expect(result.content[0].text).to.not.include('ModuleTest (module)');
+      const resources: ListResourcesData = JSON.parse(result.content[0].text);
+      expect(resources.map((r) => r.name)).to.deep.equal(['ComplexTest']);
     });
 
     it('should handle non-existent module', async () => {
@@ -353,6 +355,59 @@ describe('Registry Commands', () => {
       expect(result.content[0].type).to.equal('text');
       expect(result.content[0].text).to.include(
         `No resources found for provider 'test' in module 'nonexistent'`
+      );
+    });
+  });
+
+  describe('listFunctions handler', () => {
+    const commands = registryCommands(CACHE_DIR);
+
+    it('should list all functions for a provider with their modules', async () => {
+      const args = {
+        provider: 'test'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('Lists available Pulumi Registry functions');
+      expect(result.content[0].type).to.equal('text');
+      const functions: ListFunctionsData = JSON.parse(result.content[0].text);
+      const names = functions.map((f) => f.name);
+      expect(names).to.deep.equal([
+        'getTest',
+        'getTest',
+        'getAnotherTest',
+        'getModuleTest',
+        'getComplexTest'
+      ]);
+    });
+
+    it('should filter functions by main module name', async () => {
+      const args = {
+        provider: 'test',
+        module: 'complex'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('Lists available Pulumi Registry functions');
+      expect(result.content[0].type).to.equal('text');
+      const functions: ListFunctionsData = JSON.parse(result.content[0].text);
+      expect(functions.map((f) => f.name)).to.deep.equal(['getComplexTest']);
+    });
+
+    it('should handle non-existent module', async () => {
+      const args = {
+        provider: 'test',
+        module: 'nonexistent'
+      };
+
+      const result = await commands['list-functions'].handler(args);
+
+      expect(result.description).to.equal('No functions found');
+      expect(result.content[0].type).to.equal('text');
+      expect(result.content[0].text).to.include(
+        `No functions found for provider 'test' in module 'nonexistent'`
       );
     });
   });

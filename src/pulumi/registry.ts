@@ -82,6 +82,16 @@ export type GetFunctionData = {
   inputs: FunctionProperty;
   outputs: FunctionProperty;
 };
+type ListFunctionsArgs = ListResourcesArgs;
+
+export type ListResourcesData = {
+  type: string;
+  description: string;
+  name: string;
+  module: string;
+}[];
+
+export type ListFunctionsData = ListResourcesData;
 
 export const registryCommands = function (cacheDir: string) {
   // Function to get schema with caching
@@ -360,6 +370,7 @@ export const registryCommands = function (cacheDir: string) {
             const shortDescription =
               resource.description?.split('\n')[0].trim() ?? '<no description>';
             return {
+              type: key,
               name: resourceName,
               module: mainModule,
               description: shortDescription
@@ -380,18 +391,84 @@ export const registryCommands = function (cacheDir: string) {
           };
         }
 
-        const resourceList = resources
-          .map((r) => `- ${r.name} (${r.module})\n  ${r.description}`)
-          .join('\n\n');
-
         return {
           description: 'Lists available Pulumi Registry resources',
           content: [
             {
               type: 'text' as const,
-              text: args.module
-                ? `Available resources for ${args.provider}/${args.module}:\n\n${resourceList}`
-                : `Available resources for ${args.provider}:\n\n${resourceList}`
+              text: JSON.stringify(resources)
+            }
+          ]
+        };
+      }
+    },
+
+    'list-functions': {
+      description: 'List all function types for a given provider and module',
+      schema: {
+        provider: z
+          .string()
+          .describe(
+            "The cloud provider (e.g., 'aws', 'azure', 'gcp', 'random') or github.com/org/repo for Git-hosted components"
+          ),
+        module: z
+          .string()
+          .optional()
+          .describe("Optional module to filter by (e.g., 's3', 'ec2', 'lambda')"),
+        version: z
+          .string()
+          .optional()
+          .describe(
+            "The provider version to use (e.g., '6.0.0'). If not specified, uses the latest available version."
+          )
+      },
+      handler: async (args: ListFunctionsArgs) => {
+        const schema = await getSchema(args.provider, args.version);
+
+        // Filter and format functions
+        const functions = Object.entries(schema.functions)
+          .filter(([key]) => {
+            if (args.module) {
+              const [, modulePath] = key.split(':');
+              const mainModule = modulePath.split('/')[0];
+              return mainModule === args.module;
+            }
+            return true;
+          })
+          .map(([key, func]) => {
+            const functionName = key.split(':').pop() || '';
+            const modulePath = key.split(':')[1];
+            const mainModule = modulePath.split('/')[0];
+            // Trim description at first '#' character
+            const shortDescription = func.description?.split('\n')[0].trim() ?? '<no description>';
+            return {
+              type: key,
+              name: functionName,
+              module: mainModule,
+              description: shortDescription
+            };
+          });
+
+        if (functions.length === 0) {
+          return {
+            description: 'No functions found',
+            content: [
+              {
+                type: 'text' as const,
+                text: args.module
+                  ? `No functions found for provider '${args.provider}' in module '${args.module}'`
+                  : `No functions found for provider '${args.provider}'`
+              }
+            ]
+          };
+        }
+
+        return {
+          description: 'Lists available Pulumi Registry functions',
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(functions)
             }
           ]
         };
