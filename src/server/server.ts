@@ -79,7 +79,6 @@ export class Server extends McpServer {
     // Register deploy commands
     Object.entries(deployCommands).forEach(([commandName, command]) => {
       const toolName = commandName;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tool(toolName, command.description, command.schema, async () => {
         try {
           return await command.handler();

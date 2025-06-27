@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 // Define schema types
 type ResourceProperty = {
@@ -103,7 +103,8 @@ export const registryCommands = function (cacheDir: string) {
     );
 
     if (!fs.existsSync(cacheFile)) {
-      execSync(`pulumi package get-schema ${providerWithVersion} >> ${cacheFile}`);
+      const output = execFileSync('pulumi', ['package', 'get-schema', providerWithVersion]);
+      fs.writeFileSync(cacheFile, output);
     }
     return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
   }
