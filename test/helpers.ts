@@ -36,7 +36,7 @@ export interface ToolCallResponse {
 }
 
 async function runInspectorCommand<T>(command: string): Promise<T> {
-  const inspectorCommand = `npx @modelcontextprotocol/inspector --cli node dist/index.js stdio ${command}`;
+  const inspectorCommand = `./node_modules/.bin/mcp-inspector-cli --cli node dist/index.js stdio ${command}`;
   try {
     const { stdout } = await execAsync(inspectorCommand);
     return JSON.parse(stdout) as T;
