@@ -33,11 +33,12 @@
     "test:watch": "NODE_OPTIONS='--loader ts-node/esm' mocha --watch --watch-files test 'test/**/*.test.ts'",
     "test:unit": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 --grep '^(?!.*Claude Code SDK)' 'test/**/*.test.ts'",
     "test:claude-code": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 60000 --grep 'Claude Code SDK' 'test/**/*.test.ts'",
-    "inspector": " npx @modelcontextprotocol/inspector dist/index.js"
+    "inspector": "./node_modules/.bin/mcp-inspector-cli --cli node dist/index.js stdio"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.33",
-    "@modelcontextprotocol/sdk": "^1.11.1",
+    "@modelcontextprotocol/inspector": "^0.15.0",
+    "@modelcontextprotocol/sdk": "^1.13.1",
     "@pulumi/pulumi": "^3.169.0",
     "express": "^5.1.0",
     "pino": "^9.6.0",

@@ -174,13 +174,13 @@ The install script will remove any existing `pulumi-mcp-local` installation and 
 Use MCP Inspector to list the existing tools and their metadata:
 
 ```bash
-npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method tools/list
+npm run inspector -- --method tools/list
 ```
 
 Use MCP Inspector to list the existing prompts and their metadata:
 
 ```bash
-npx @modelcontextprotocol/inspector --cli node dist/index.js stdio --method prompts/list
+npm run inspector -- --method prompts/list
 ```
 
 ## License
