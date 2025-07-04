@@ -41,7 +41,7 @@ When a user requests infrastructure deployment assistance:
    - Implement security hardening by default
 
 5. **Verification of result**
-   - Afther the infrastructure code has been generated, verify it by running `pulumi preview`. You will need to run the following commands:
+   - After the infrastructure code has been generated, verify it by running `pulumi preview`. You will need to run the following commands:
      - Install the necessary packages. For example, here is how to do this for Node.js packages:
      ```bash
      cd infrastructure
