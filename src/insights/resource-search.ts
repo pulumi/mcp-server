@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { MockPulumiApiClient, createPulumiSearchApiClient } from './pulumi-api-client.js';
-import * as automation from '@pulumi/pulumi/automation/index.js';
 
 export type ResourceSearchArgs = {
   query: string;
@@ -68,10 +67,7 @@ export const resourceSearchCommands = {
         .number()
         .optional()
         .describe('Maximum number of top results to return (defaults to 20)'),
-      size: z
-        .number()
-        .optional()
-        .describe('Number of results per page (defaults to 25)')
+      size: z.number().optional().describe('Number of results per page (defaults to 25)')
     },
     handler: async (args: ResourceSearchArgs) => {
       const isTestMode = process.env.MCP_TEST_MODE === 'true';
@@ -79,7 +75,7 @@ export const resourceSearchCommands = {
       if (isTestMode) {
         // Get org - use provided org or mock default for testing
         const org = args.org || 'mock-org';
-        
+
         // Use mock client for testing
         const mockClient = new MockPulumiApiClient();
         const mockResponse = await mockClient.searchResources({
@@ -123,8 +119,8 @@ export const resourceSearchCommands = {
         };
       } else {
         // Get org - use provided org or detect default org
-        const org = args.org || await getDefaultOrg();
-        
+        const org = args.org || (await getDefaultOrg());
+
         // Use real API client - will throw clear error if token is missing
         const apiClient = createPulumiSearchApiClient();
         const apiResponse = await apiClient.searchResources({
