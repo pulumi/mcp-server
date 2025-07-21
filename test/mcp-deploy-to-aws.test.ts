@@ -3,16 +3,6 @@ import { expect } from 'chai';
 import { listTools, listPrompts, callTool } from './helpers.js';
 
 describe('MCP Tool: deploy-to-aws', function () {
-  before(async function () {
-    // Set test mode environment variable
-    process.env.MCP_TEST_MODE = 'true';
-  });
-
-  after(() => {
-    // Clean up test environment variable
-    delete process.env.MCP_TEST_MODE;
-  });
-
   describe('Tool Invocation', () => {
     it('should successfully invoke deploy-to-aws tool with no parameters', async function () {
       const response = await callTool('deploy-to-aws');
