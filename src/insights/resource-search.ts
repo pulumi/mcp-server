@@ -6,6 +6,7 @@ export type ResourceSearchArgs = {
   org?: string;
   top?: number;
   size?: number;
+  properties?: boolean;
 };
 
 export type ResourceSearchResult = {
@@ -67,7 +68,8 @@ export const resourceSearchCommands = {
         .number()
         .optional()
         .describe('Maximum number of top results to return (defaults to 20)'),
-      size: z.number().optional().describe('Number of results per page (defaults to 25)')
+      size: z.number().optional().describe('Number of results per page (defaults to 25)'),
+      properties: z.boolean().optional().describe('Whether to include resource properties in the response (defaults to false)')
     },
     handler: async (args: ResourceSearchArgs) => {
       const isTestMode = process.env.MCP_TEST_MODE === 'true';
@@ -81,7 +83,8 @@ export const resourceSearchCommands = {
         const mockResponse = await mockClient.searchResources({
           query: args.query,
           org: org,
-          top: args.top
+          top: args.top,
+          properties: args.properties
         });
 
         const results: ResourceSearchResult = {
@@ -128,6 +131,7 @@ export const resourceSearchCommands = {
           org: org,
           top: args.top,
           size: args.size,
+          properties: args.properties,
           source: 'mcp-server'
         });
 

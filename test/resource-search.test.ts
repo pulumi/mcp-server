@@ -37,6 +37,53 @@ describe('Resource Search Tool', function () {
         expect(response.results.resources[0].name).to.equal('example-resource');
       });
     });
+
+    describe('Properties parameter handling', () => {
+      it('should pass properties parameter to the search request', async () => {
+        const args = {
+          query: 'type:aws:s3:Bucket -properties.tags:*',
+          properties: true
+        };
+
+        const result = await commands['resource-search'].handler(args);
+        const response = JSON.parse(result.content[0].text);
+
+        // Test that we get a resource with properties
+        expect(response.results.resources).to.have.lengthOf(1);
+        expect(response.results.resources[0]).to.have.property('properties');
+        expect(response.results.resources[0].properties).to.be.an('object');
+        expect(response.results.resources[0].properties['region']).to.equal('us-west-2');
+      });
+
+      it('should handle properties parameter set to false', async () => {
+        const args = {
+          query: 'type:aws:s3:Bucket -properties.tags:*',
+          properties: false
+        };
+
+        const result = await commands['resource-search'].handler(args);
+        const response = JSON.parse(result.content[0].text);
+
+        // Test that we still get a resource (properties behavior is handled by API)
+        expect(response.results.resources).to.have.lengthOf(1);
+        expect(response.results.resources[0]).to.have.property('properties');
+        expect(JSON.stringify(response.results.resources[0].properties)).to.equal('{}');
+      });
+
+      it('should work without properties parameter (defaults to false)', async () => {
+        const args = {
+          query: 'type:aws:s3:Bucket -properties.tags:*',
+        };
+
+        const result = await commands['resource-search'].handler(args);
+        const response = JSON.parse(result.content[0].text);
+
+        // Test that we get a resource without explicitly setting properties
+        expect(response.results.resources).to.have.lengthOf(1);
+        expect(response.results.resources[0]).to.have.property('properties');
+        expect(JSON.stringify(response.results.resources[0].properties)).to.equal('{}');
+      });
+    });
   });
 
   describe('Claude Code SDK Integration Tests', function () {
