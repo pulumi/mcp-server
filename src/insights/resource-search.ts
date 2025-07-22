@@ -69,7 +69,10 @@ export const resourceSearchCommands = {
         .optional()
         .describe('Maximum number of top results to return (defaults to 20)'),
       size: z.number().optional().describe('Number of results per page (defaults to 25)'),
-      properties: z.boolean().optional().describe('Whether to include resource properties in the response (defaults to false)')
+      properties: z
+        .boolean()
+        .optional()
+        .describe('Whether to include resource properties in the response (defaults to false)')
     },
     handler: async (args: ResourceSearchArgs) => {
       const isTestMode = process.env.MCP_TEST_MODE === 'true';

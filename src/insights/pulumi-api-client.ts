@@ -162,11 +162,13 @@ export class MockPulumiApiClient extends PulumiSearchApiClient {
             type: 'aws:s3:Bucket',
             project: 'example-project',
             stack: 'dev',
-            properties: request.properties ? {
-              bucket: 'acme-bucket',
-              region: 'us-west-2'
-              // No tags property = untagged
-            } : {},
+            properties: request.properties
+              ? {
+                  bucket: 'acme-bucket',
+                  region: 'us-west-2'
+                  // No tags property = untagged
+                }
+              : {},
             id: 'arn:aws:s3:::acme-bucket',
             created: '2024-01-15T10:30:00Z',
             modified: '2024-01-15T10:30:00Z',
@@ -192,10 +194,12 @@ export class MockPulumiApiClient extends PulumiSearchApiClient {
           type: 'aws:ec2:Instance',
           project: 'example-project',
           stack: 'dev',
-          properties: request.properties ? {
-            instanceType: 't3.micro',
-            tags: { Environment: 'dev' }
-          } : {},
+          properties: request.properties
+            ? {
+                instanceType: 't3.micro',
+                tags: { Environment: 'dev' }
+              }
+            : {},
           id: 'i-1234567890abcdef0',
           created: '2024-01-15T10:30:00Z',
           modified: '2024-01-15T10:30:00Z',
