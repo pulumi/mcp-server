@@ -9,6 +9,7 @@ import { logger } from '../logging/logging.js';
 import { deployCommands, deployPrompts } from '../deploy/deploy.js';
 import { convertPrompts } from '../pulumi/convert.js';
 import { resourceSearchCommands } from '../insights/resource-search.js';
+import { policyViolationsCommands } from '../insights/policy-violations.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -91,6 +92,19 @@ export class Server extends McpServer {
 
     // Register resource search commands
     Object.entries(resourceSearchCommands).forEach(([commandName, command]) => {
+      const toolName = `pulumi-${commandName}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.tool(toolName, command.description, command.schema, async (args: any) => {
+        try {
+          return await command.handler(args);
+        } catch (error) {
+          return handleError(error, toolName);
+        }
+      });
+    });
+
+    // Register policy violations commands
+    Object.entries(policyViolationsCommands).forEach(([commandName, command]) => {
       const toolName = `pulumi-${commandName}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tool(toolName, command.description, command.schema, async (args: any) => {
