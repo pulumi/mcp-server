@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MockPulumiApiClient, createPulumiApiClient } from './pulumi-api-client.js';
+import { createPulumiApiClient } from './pulumi-api-client.js';
 
 export type ResourceSearchArgs = {
   query: string;
@@ -73,28 +73,23 @@ export const resourceSearchCommands = {
         .describe('Whether to include resource properties in the response (defaults to false)')
     },
     handler: async (args: ResourceSearchArgs) => {
-      const isTestMode = process.env.MCP_TEST_MODE === 'true';
-
-      if (isTestMode) {
-        // Get org - use provided org or mock default for testing
-        const org = args.org || 'mock-org';
-
-        // Use mock client for testing
+      // Check if we're in test mode - use test client if so
+      if (process.env.MCP_TEST_MODE === 'true') {
+        const { MockPulumiApiClient } = await import('../../test/mock-pulumi-api-client.js');
         const mockClient = new MockPulumiApiClient();
         const mockResponse = await mockClient.searchResources({
           query: args.query,
-          org: org,
+          org: args.org || 'mock-org',
           top: args.top,
-          properties: args.properties
+          size: args.size,
+          properties: args.properties,
+          source: 'mcp-server'
         });
 
         const results: ResourceSearchResult = {
           query: args.query,
           resources: mockResponse.resources,
-          summary:
-            mockResponse.totalResources > 0 && mockResponse.resources[0].name === 'acme-bucket'
-              ? 'Found 1 untagged S3 bucket: acme-bucket'
-              : `Found ${mockResponse.totalResources} resource${mockResponse.totalResources === 1 ? '' : 's'} matching your query`,
+          summary: `Found ${mockResponse.totalResources} resource${mockResponse.totalResources === 1 ? '' : 's'} matching your query`,
           facets: mockResponse.facets,
           totalResources: mockResponse.totalResources
         };
@@ -107,52 +102,7 @@ export const resourceSearchCommands = {
               text: JSON.stringify(
                 {
                   query: results.query,
-                  org: org,
-                  results: {
-                    resources: results.resources,
-                    facets: results.facets,
-                    totalResources: results.totalResources
-                  },
-                  summary: results.summary
-                },
-                null,
-                2
-              )
-            }
-          ]
-        };
-      } else {
-        // Get org - use provided org or detect default org
-        const org = args.org || (await getDefaultOrg());
-
-        // Use real API client - will throw clear error if token is missing
-        const apiClient = createPulumiApiClient();
-        const apiResponse = await apiClient.searchResources({
-          query: args.query,
-          org: org,
-          top: args.top,
-          size: args.size,
-          properties: args.properties,
-          source: 'mcp-server'
-        });
-
-        const results: ResourceSearchResult = {
-          query: args.query,
-          resources: apiResponse.resources,
-          summary: `Found ${apiResponse.totalResources} resource${apiResponse.totalResources === 1 ? '' : 's'} matching your query`,
-          facets: apiResponse.facets,
-          totalResources: apiResponse.totalResources
-        };
-
-        return {
-          description: 'Pulumi resource search results',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  query: results.query,
-                  org: org,
+                  org: args.org || 'mock-org',
                   results: {
                     resources: results.resources,
                     facets: results.facets,
@@ -167,6 +117,51 @@ export const resourceSearchCommands = {
           ]
         };
       }
+
+      // Get org - use provided org or detect default org
+      const org = args.org || (await getDefaultOrg());
+
+      // Use real API client - will throw clear error if token is missing
+      const apiClient = createPulumiApiClient();
+      const apiResponse = await apiClient.searchResources({
+        query: args.query,
+        org: org,
+        top: args.top,
+        size: args.size,
+        properties: args.properties,
+        source: 'mcp-server'
+      });
+
+      const results: ResourceSearchResult = {
+        query: args.query,
+        resources: apiResponse.resources,
+        summary: `Found ${apiResponse.totalResources} resource${apiResponse.totalResources === 1 ? '' : 's'} matching your query`,
+        facets: apiResponse.facets,
+        totalResources: apiResponse.totalResources
+      };
+
+      return {
+        description: 'Pulumi resource search results',
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                query: results.query,
+                org: org,
+                results: {
+                  resources: results.resources,
+                  facets: results.facets,
+                  totalResources: results.totalResources
+                },
+                summary: results.summary
+              },
+              null,
+              2
+            )
+          }
+        ]
+      };
     }
   }
 };

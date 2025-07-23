@@ -54,13 +54,22 @@ describe('Policy Violations Tool', function () {
         const result = await commands['policy-violations'].handler(args);
         const response = JSON.parse(result.content[0].text);
 
-        // Test summary format
+        // Test enhanced summary format with resource mapping
+        expect(response.summary).to.be.a('string');
         if (response.totalViolations === 0) {
-          expect(response.summary).to.equal('No policy violations found');
+          expect(response.summary).to.include('No policy violations found');
         } else if (response.totalViolations === 1) {
-          expect(response.summary).to.equal('Found 1 policy violation');
+          expect(response.summary).to.include('Found 1 policy violation');
         } else {
-          expect(response.summary).to.equal(`Found ${response.totalViolations} policy violations`);
+          expect(response.summary).to.include(`Found ${response.totalViolations} policy violation`);
+        }
+        
+        // Test new enhanced structure
+        if (response.violations.length > 0) {
+          const violation = response.violations[0];
+          expect(violation).to.have.property('logicalName');
+          expect(violation).to.have.property('filePaths');
+          expect(violation.filePaths).to.be.an('array');
         }
       });
     });
