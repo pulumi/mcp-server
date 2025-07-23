@@ -7,12 +7,10 @@ import {
 
 async function getDefaultOrg(): Promise<string> {
   try {
-    // Use shell execution to run 'pulumi org get-default' directly
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    // Use execFileSync for security - avoids shell interpretation
+    const { execFileSync } = await import('child_process');
 
-    const { stdout } = await execAsync('pulumi org get-default');
+    const stdout = execFileSync('pulumi', ['org', 'get-default'], { encoding: 'utf8' });
     const defaultOrg = stdout.trim();
 
     if (!defaultOrg) {
