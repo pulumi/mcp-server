@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MockPulumiApiClient, createPulumiSearchApiClient } from './pulumi-api-client.js';
+import { MockPulumiApiClient, createPulumiApiClient } from './pulumi-api-client.js';
 
 export type ResourceSearchArgs = {
   query: string;
@@ -128,7 +128,7 @@ export const resourceSearchCommands = {
         const org = args.org || (await getDefaultOrg());
 
         // Use real API client - will throw clear error if token is missing
-        const apiClient = createPulumiSearchApiClient();
+        const apiClient = createPulumiApiClient();
         const apiResponse = await apiClient.searchResources({
           query: args.query,
           org: org,

@@ -1,6 +1,6 @@
 /**
- * Pulumi API Client for resource search
- * This module handles actual API calls to Pulumi Cloud Service
+ * Consolidated Pulumi API Client
+ * This module handles API calls to Pulumi Cloud Service endpoints
  */
 
 export interface PulumiSearchRequest {
@@ -39,17 +39,54 @@ export interface PulumiSearchResponse {
   size?: number;
 }
 
-export interface PulumiSearchApiClientConfig {
+export interface PolicyViolation {
+  projectName: string;
+  stackName: string;
+  policyPack: string;
+  policyPackTag: string;
+  policyName: string;
+  resourceURN: string;
+  resourceType: string;
+  resourceName: string;
+  message: string;
+  observedAt: string;
+  level: string;
+}
+
+export interface PolicyViolationsResponse {
+  policyViolations: PolicyViolation[];
+}
+
+export interface PulumiApiClientConfig {
   apiUrl: string;
   accessToken: string;
   timeout?: number;
 }
 
 /**
- * Client for interacting with Pulumi Cloud Resource Search API
+ * Consolidated error handling for Pulumi API responses
  */
-export class PulumiSearchApiClient {
-  constructor(private config: PulumiSearchApiClientConfig) {}
+function handlePulumiApiError(response: Response, context: string): never {
+  if (response.status === 401) {
+    throw new Error('Unauthorized: Invalid or expired access token');
+  }
+  if (response.status === 403) {
+    throw new Error(`Forbidden: Insufficient permissions for ${context}`);
+  }
+  if (response.status === 404) {
+    throw new Error(`Organization not found`);
+  }
+  if (response.status === 402) {
+    throw new Error(`Quota limit exceeded for ${context}`);
+  }
+  throw new Error(`Pulumi API error: ${response.status} ${response.statusText}`);
+}
+
+/**
+ * Consolidated client for interacting with Pulumi Cloud APIs
+ */
+export class PulumiApiClient {
+  constructor(private config: PulumiApiClientConfig) {}
 
   /**
    * Search for resources using Pulumi Cloud Resource Search API
@@ -87,20 +124,7 @@ export class PulumiSearchApiClient {
     });
 
     if (!response.ok) {
-      if (response.status === 402) {
-        throw new Error('Quota limit exceeded for resource search API');
-      }
-      if (response.status === 401) {
-        throw new Error('Unauthorized: Invalid or expired access token');
-      }
-      if (response.status === 403) {
-        throw new Error('Forbidden: Insufficient permissions for resource search');
-      }
-      if (response.status === 404) {
-        throw new Error(`Organization '${request.org}' not found`);
-      }
-
-      throw new Error(`Pulumi API error: ${response.status} ${response.statusText}`);
+      handlePulumiApiError(response, 'resource search');
     }
 
     const data = await response.json();
@@ -119,12 +143,37 @@ export class PulumiSearchApiClient {
       size: data.size
     };
   }
+
+  /**
+   * Get policy violations for an organization
+   * Calls: GET /api/orgs/{organization}/policyresults/violationsv2
+   */
+  async getPolicyViolations(org: string): Promise<PolicyViolationsResponse> {
+    const url = new URL(`/api/orgs/${org}/policyresults/violationsv2`, this.config.apiUrl);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.pulumi+8',
+        Authorization: `token ${this.config.accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'pulumi-mcp-server'
+      },
+      signal: AbortSignal.timeout(this.config.timeout || 30000)
+    });
+
+    if (!response.ok) {
+      handlePulumiApiError(response, 'policy violations');
+    }
+
+    return await response.json();
+  }
 }
 
 /**
  * Factory function to create PulumiApiClient with environment-based configuration
  */
-export function createPulumiSearchApiClient(): PulumiSearchApiClient {
+export function createPulumiApiClient(): PulumiApiClient {
   const apiUrl = process.env.PULUMI_API_URL || 'https://api.pulumi.com';
   const accessToken = process.env.PULUMI_ACCESS_TOKEN;
 
@@ -132,7 +181,7 @@ export function createPulumiSearchApiClient(): PulumiSearchApiClient {
     throw new Error('PULUMI_ACCESS_TOKEN environment variable is required');
   }
 
-  return new PulumiSearchApiClient({
+  return new PulumiApiClient({
     apiUrl,
     accessToken,
     timeout: 30000
@@ -142,7 +191,7 @@ export function createPulumiSearchApiClient(): PulumiSearchApiClient {
 /**
  * Mock client for testing - returns stub data without making real API calls
  */
-export class MockPulumiApiClient extends PulumiSearchApiClient {
+export class MockPulumiApiClient extends PulumiApiClient {
   constructor() {
     super({ apiUrl: 'http://mock', accessToken: 'mock' });
   }
@@ -214,6 +263,44 @@ export class MockPulumiApiClient extends PulumiSearchApiClient {
         stack: { dev: 1 }
       },
       totalResources: 1
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getPolicyViolations(org: string): Promise<PolicyViolationsResponse> {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Return mock policy violations
+    return {
+      policyViolations: [
+        {
+          projectName: 'my-web-app',
+          stackName: 'dev',
+          policyPack: 'security-policies',
+          policyPackTag: '1.0.0',
+          policyName: 'no-public-s3-buckets',
+          resourceURN: 'urn:pulumi:dev::my-web-app::aws:s3/bucket:Bucket::my-public-bucket',
+          resourceType: 'aws:s3/bucket:Bucket',
+          resourceName: 'my-public-bucket',
+          message: 'S3 bucket should not be publicly accessible',
+          observedAt: '2024-01-15T10:30:00Z',
+          level: 'mandatory'
+        },
+        {
+          projectName: 'infrastructure',
+          stackName: 'prod',
+          policyPack: 'compliance-policies',
+          policyPackTag: '2.1.0',
+          policyName: 'require-encryption',
+          resourceURN: 'urn:pulumi:prod::infrastructure::aws:rds/instance:Instance::main-db',
+          resourceType: 'aws:rds/instance:Instance',
+          resourceName: 'main-db',
+          message: 'RDS instance must have encryption enabled',
+          observedAt: '2024-01-14T15:45:00Z',
+          level: 'advisory'
+        }
+      ]
     };
   }
 }

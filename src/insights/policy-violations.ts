@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { 
-  MockPolicyViolationsApiClient, 
-  createPolicyViolationsApiClient,
-  type PolicyViolation 
-} from './policy-violations-client.js';
+import {
+  MockPulumiApiClient,
+  createPulumiApiClient,
+  type PolicyViolation
+} from './pulumi-api-client.js';
 
 async function getDefaultOrg(): Promise<string> {
   try {
@@ -11,14 +11,14 @@ async function getDefaultOrg(): Promise<string> {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
-    
+
     const { stdout } = await execAsync('pulumi org get-default');
     const defaultOrg = stdout.trim();
-    
+
     if (!defaultOrg) {
       throw new Error('No default organization set');
     }
-    
+
     return defaultOrg;
   } catch (error) {
     throw new Error(
@@ -54,17 +54,18 @@ export const policyViolationsCommands = {
       if (isTestMode) {
         // Get org - use provided org or mock default for testing
         const org = args.org || 'mock-org';
-        
+
         // Use mock client for testing
-        const mockClient = new MockPolicyViolationsApiClient();
+        const mockClient = new MockPulumiApiClient();
         const mockResponse = await mockClient.getPolicyViolations(org);
 
         const results: PolicyViolationsResult = {
           org: org,
           violations: mockResponse.policyViolations,
-          summary: mockResponse.policyViolations.length > 0 
-            ? `Found ${mockResponse.policyViolations.length} policy violation${mockResponse.policyViolations.length === 1 ? '' : 's'}`
-            : 'No policy violations found',
+          summary:
+            mockResponse.policyViolations.length > 0
+              ? `Found ${mockResponse.policyViolations.length} policy violation${mockResponse.policyViolations.length === 1 ? '' : 's'}`
+              : 'No policy violations found',
           totalViolations: mockResponse.policyViolations.length
         };
 
@@ -88,19 +89,22 @@ export const policyViolationsCommands = {
         };
       } else {
         // Get org - use provided org or detect default org
-        const org = args.org || await getDefaultOrg();
-        
+        const org = args.org || (await getDefaultOrg());
+
         // Use real API client - will throw clear error if token is missing
-        const apiClient = createPolicyViolationsApiClient();
+        const apiClient = createPulumiApiClient();
         const apiResponse = await apiClient.getPolicyViolations(org);
+
+        const policyViolations = apiResponse.policyViolations;
 
         const results: PolicyViolationsResult = {
           org: org,
-          violations: apiResponse.policyViolations,
-          summary: apiResponse.policyViolations.length > 0 
-            ? `Found ${apiResponse.policyViolations.length} policy violation${apiResponse.policyViolations.length === 1 ? '' : 's'}`
-            : 'No policy violations found',
-          totalViolations: apiResponse.policyViolations.length
+          violations: policyViolations,
+          summary:
+            policyViolations.length > 0
+              ? `Found ${policyViolations.length} policy violation${policyViolations.length === 1 ? '' : 's'}`
+              : 'No policy violations found',
+          totalViolations: policyViolations.length
         };
 
         return {
