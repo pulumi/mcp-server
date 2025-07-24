@@ -8,7 +8,7 @@ import {
   type EnhancedPolicyViolation,
   type StackResource
 } from './pulumi-api-client.js';
-import { getDefaultOrg } from './pulumi-utils.js';
+import { getDefaultOrg, createMcpJsonResponse } from './pulumi-utils.js';
 
 export async function getStackInfo(
   workDir?: string,
@@ -368,24 +368,12 @@ export const policyViolationsCommands = {
           totalViolations: mockResponse.policyViolations.length
         };
 
-        return {
-          description: 'Pulumi policy violations',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  org: results.org,
-                  violations: results.violations,
-                  summary: results.summary,
-                  totalViolations: results.totalViolations
-                },
-                null,
-                2
-              )
-            }
-          ]
-        };
+        return createMcpJsonResponse('Pulumi policy violations', {
+          org: results.org,
+          violations: results.violations,
+          summary: results.summary,
+          totalViolations: results.totalViolations
+        });
       }
 
       // Get org - use provided org or detect default org
@@ -464,24 +452,12 @@ export const policyViolationsCommands = {
         filteredCount: originalCount > filteredCount ? originalCount - filteredCount : undefined
       };
 
-      return {
-        description: 'Pulumi policy violations',
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(
-              {
-                org: results.org,
-                violations: results.violations,
-                summary: results.summary,
-                totalViolations: results.totalViolations
-              },
-              null,
-              2
-            )
-          }
-        ]
-      };
+      return createMcpJsonResponse('Pulumi policy violations', {
+        org: results.org,
+        violations: results.violations,
+        summary: results.summary,
+        totalViolations: results.totalViolations
+      });
     }
   }
 };

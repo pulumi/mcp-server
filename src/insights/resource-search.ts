@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createPulumiApiClient } from './pulumi-api-client.js';
-import { getDefaultOrg } from './pulumi-utils.js';
+import { getDefaultOrg, createMcpJsonResponse } from './pulumi-utils.js';
 
 export type ResourceSearchArgs = {
   query: string;
@@ -75,28 +75,16 @@ export const resourceSearchCommands = {
           totalResources: mockResponse.totalResources
         };
 
-        return {
-          description: 'Pulumi resource search results',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  query: results.query,
-                  org: args.org || 'mock-org',
-                  results: {
-                    resources: results.resources,
-                    facets: results.facets,
-                    totalResources: results.totalResources
-                  },
-                  summary: results.summary
-                },
-                null,
-                2
-              )
-            }
-          ]
-        };
+        return createMcpJsonResponse('Pulumi resource search results', {
+          query: results.query,
+          org: args.org || 'mock-org',
+          results: {
+            resources: results.resources,
+            facets: results.facets,
+            totalResources: results.totalResources
+          },
+          summary: results.summary
+        });
       }
 
       // Get org - use provided org or detect default org
@@ -121,28 +109,16 @@ export const resourceSearchCommands = {
         totalResources: apiResponse.totalResources
       };
 
-      return {
-        description: 'Pulumi resource search results',
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(
-              {
-                query: results.query,
-                org: org,
-                results: {
-                  resources: results.resources,
-                  facets: results.facets,
-                  totalResources: results.totalResources
-                },
-                summary: results.summary
-              },
-              null,
-              2
-            )
-          }
-        ]
-      };
+      return createMcpJsonResponse('Pulumi resource search results', {
+        query: results.query,
+        org: org,
+        results: {
+          resources: results.resources,
+          facets: results.facets,
+          totalResources: results.totalResources
+        },
+        summary: results.summary
+      });
     }
   }
 };

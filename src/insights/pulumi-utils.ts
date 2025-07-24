@@ -2,6 +2,32 @@
  * Shared utilities for Pulumi operations
  */
 
+type TextContent = {
+  type: 'text';
+  text: string;
+};
+
+/**
+ * Creates a standardized MCP response with JSON content
+ */
+export function createMcpJsonResponse(
+  description: string,
+  data: unknown
+): {
+  description: string;
+  content: TextContent[];
+} {
+  return {
+    description,
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(data, null, 2)
+      }
+    ]
+  };
+}
+
 export async function getDefaultOrg(): Promise<string> {
   try {
     // Use execFileSync for security - avoids shell interpretation
