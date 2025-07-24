@@ -1,6 +1,6 @@
 /**
- * Pulumi API Client for resource search
- * This module handles actual API calls to Pulumi Cloud Service
+ * Consolidated Pulumi API Client
+ * This module handles API calls to Pulumi Cloud Service endpoints
  */
 
 export interface PulumiSearchRequest {
@@ -39,17 +39,72 @@ export interface PulumiSearchResponse {
   size?: number;
 }
 
-export interface PulumiSearchApiClientConfig {
+export interface PolicyViolation {
+  projectName: string;
+  stackName: string;
+  policyPack: string;
+  policyPackTag: string;
+  policyName: string;
+  resourceURN: string;
+  resourceType: string;
+  resourceName: string;
+  message: string;
+  observedAt: string;
+  level: string;
+}
+
+export interface EnhancedPolicyViolation extends PolicyViolation {
+  logicalName: string;
+  filePaths: string[];
+}
+
+export interface PolicyViolationsResponse {
+  policyViolations: PolicyViolation[];
+}
+
+export interface StackResource {
+  urn: string;
+  id?: string;
+  type: string;
+  custom: boolean;
+}
+
+export interface StackExportResponse {
+  deployment: {
+    resources: StackResource[];
+  };
+}
+
+export interface PulumiApiClientConfig {
   apiUrl: string;
   accessToken: string;
   timeout?: number;
 }
 
 /**
- * Client for interacting with Pulumi Cloud Resource Search API
+ * Consolidated error handling for Pulumi API responses
  */
-export class PulumiSearchApiClient {
-  constructor(private config: PulumiSearchApiClientConfig) {}
+function handlePulumiApiError(response: Response, context: string): never {
+  if (response.status === 401) {
+    throw new Error('Unauthorized: Invalid or expired access token');
+  }
+  if (response.status === 403) {
+    throw new Error(`Forbidden: Insufficient permissions for ${context}`);
+  }
+  if (response.status === 404) {
+    throw new Error(`Organization not found`);
+  }
+  if (response.status === 402) {
+    throw new Error(`Quota limit exceeded for ${context}`);
+  }
+  throw new Error(`Pulumi API error: ${response.status} ${response.statusText}`);
+}
+
+/**
+ * Consolidated client for interacting with Pulumi Cloud APIs
+ */
+export class PulumiApiClient {
+  constructor(private config: PulumiApiClientConfig) {}
 
   /**
    * Search for resources using Pulumi Cloud Resource Search API
@@ -87,20 +142,7 @@ export class PulumiSearchApiClient {
     });
 
     if (!response.ok) {
-      if (response.status === 402) {
-        throw new Error('Quota limit exceeded for resource search API');
-      }
-      if (response.status === 401) {
-        throw new Error('Unauthorized: Invalid or expired access token');
-      }
-      if (response.status === 403) {
-        throw new Error('Forbidden: Insufficient permissions for resource search');
-      }
-      if (response.status === 404) {
-        throw new Error(`Organization '${request.org}' not found`);
-      }
-
-      throw new Error(`Pulumi API error: ${response.status} ${response.statusText}`);
+      handlePulumiApiError(response, 'resource search');
     }
 
     const data = await response.json();
@@ -119,12 +161,61 @@ export class PulumiSearchApiClient {
       size: data.size
     };
   }
+
+  /**
+   * Get policy violations for an organization
+   * Calls: GET /api/orgs/{organization}/policyresults/violationsv2
+   */
+  async getPolicyViolations(org: string): Promise<PolicyViolationsResponse> {
+    const url = new URL(`/api/orgs/${org}/policyresults/violationsv2`, this.config.apiUrl);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.pulumi+8',
+        Authorization: `token ${this.config.accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'pulumi-mcp-server'
+      },
+      signal: AbortSignal.timeout(this.config.timeout || 30000)
+    });
+
+    if (!response.ok) {
+      handlePulumiApiError(response, 'policy violations');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Get stack export data to map logical names to AWS resource IDs
+   * Calls: GET /api/stacks/{org}/{project}/{stack}/export
+   */
+  async getStackExport(org: string, project: string, stack: string): Promise<StackExportResponse> {
+    const url = new URL(`/api/stacks/${org}/${project}/${stack}/export`, this.config.apiUrl);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `token ${this.config.accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'pulumi-mcp-server'
+      },
+      signal: AbortSignal.timeout(this.config.timeout || 30000)
+    });
+
+    if (!response.ok) {
+      handlePulumiApiError(response, 'stack export');
+    }
+
+    return await response.json();
+  }
 }
 
 /**
  * Factory function to create PulumiApiClient with environment-based configuration
  */
-export function createPulumiSearchApiClient(): PulumiSearchApiClient {
+export function createPulumiApiClient(): PulumiApiClient {
   const apiUrl = process.env.PULUMI_API_URL || 'https://api.pulumi.com';
   const accessToken = process.env.PULUMI_ACCESS_TOKEN;
 
@@ -132,88 +223,9 @@ export function createPulumiSearchApiClient(): PulumiSearchApiClient {
     throw new Error('PULUMI_ACCESS_TOKEN environment variable is required');
   }
 
-  return new PulumiSearchApiClient({
+  return new PulumiApiClient({
     apiUrl,
     accessToken,
     timeout: 30000
   });
-}
-
-/**
- * Mock client for testing - returns stub data without making real API calls
- */
-export class MockPulumiApiClient extends PulumiSearchApiClient {
-  constructor() {
-    super({ apiUrl: 'http://mock', accessToken: 'mock' });
-  }
-
-  async searchResources(request: PulumiSearchRequest): Promise<PulumiSearchResponse> {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    const lowerQuery = request.query.toLowerCase();
-
-    // Return different mock data based on query
-    if (lowerQuery.includes('type:aws:s3:bucket') && lowerQuery.includes('-properties.tags:')) {
-      return {
-        resources: [
-          {
-            name: 'acme-bucket',
-            type: 'aws:s3:Bucket',
-            project: 'example-project',
-            stack: 'dev',
-            properties: request.properties
-              ? {
-                  bucket: 'acme-bucket',
-                  region: 'us-west-2'
-                  // No tags property = untagged
-                }
-              : {},
-            id: 'arn:aws:s3:::acme-bucket',
-            created: '2024-01-15T10:30:00Z',
-            modified: '2024-01-15T10:30:00Z',
-            provider: 'aws',
-            package: 'aws'
-          }
-        ],
-        facets: {
-          type: { 'aws:s3:Bucket': 1 },
-          package: { aws: 1 },
-          project: { 'example-project': 1 },
-          stack: { dev: 1 }
-        },
-        totalResources: 1
-      };
-    }
-
-    // Default mock response
-    return {
-      resources: [
-        {
-          name: 'example-resource',
-          type: 'aws:ec2:Instance',
-          project: 'example-project',
-          stack: 'dev',
-          properties: request.properties
-            ? {
-                instanceType: 't3.micro',
-                tags: { Environment: 'dev' }
-              }
-            : {},
-          id: 'i-1234567890abcdef0',
-          created: '2024-01-15T10:30:00Z',
-          modified: '2024-01-15T10:30:00Z',
-          provider: 'aws',
-          package: 'aws'
-        }
-      ],
-      facets: {
-        type: { 'aws:ec2:Instance': 1 },
-        package: { aws: 1 },
-        project: { 'example-project': 1 },
-        stack: { dev: 1 }
-      },
-      totalResources: 1
-    };
-  }
 }
