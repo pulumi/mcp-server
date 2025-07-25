@@ -26,20 +26,21 @@
   "scripts": {
     "lint": "eslint src/**/*.ts --no-warn-ignored",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "dev": "tsx watch src/index.ts stdio",
+    "dev": "tsx watch src/index.ts http",
+    "dev-sse": "tsx watch src/index.ts sse",
     "build": "tsup",
     "build:watch": "tsup --watch",
     "test": "MCP_TEST_MODE=true NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 'test/**/*.test.ts'",
     "test:watch": "NODE_OPTIONS='--loader ts-node/esm' mocha --watch --watch-files test 'test/**/*.test.ts'",
     "test:unit": "MCP_TEST_MODE=true NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 30000 --grep '^(?!.*Claude Code SDK)' 'test/**/*.test.ts'",
     "test:claude-code": "NODE_OPTIONS='--loader ts-node/esm' mocha --timeout 60000 --grep 'Claude Code SDK' 'test/**/*.test.ts'",
-    "inspector": "./node_modules/.bin/mcp-inspector-cli --cli node dist/index.js stdio"
+    "inspector": "./node_modules/.bin/mcp-inspector-cli --cli node dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.33",
-    "@modelcontextprotocol/inspector": "^0.15.0",
-    "@modelcontextprotocol/sdk": "^1.13.1",
-    "@pulumi/pulumi": "^3.169.0",
+    "@anthropic-ai/claude-code": "^1.0.60",
+    "@modelcontextprotocol/inspector": "^0.16.1",
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "@pulumi/pulumi": "^3.185.0",
     "express": "^5.1.0",
     "pino": "^9.6.0",
     "yargs": "^17.7.2",
@@ -59,7 +60,8 @@
     "mocha": "^10.3.0",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
-    "tsup": "^8.4.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.32.0"
   }

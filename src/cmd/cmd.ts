@@ -1,6 +1,10 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { connectSSETransport, connectStdioTransport } from '../server/transport.js';
+import {
+  connectSSETransport,
+  connectStdioTransport,
+  connectHttpTransport
+} from '../server/transport.js';
 
 export const cmd = () => {
   const exe = yargs(hideBin(process.argv));
@@ -22,6 +26,18 @@ export const cmd = () => {
       });
     },
     ({ port }) => connectSSETransport(port)
+  );
+
+  exe.command(
+    'http',
+    'Start Pulumi MCP server using Http Stream.',
+    (yargs) => {
+      return yargs.option('port', {
+        type: 'number',
+        default: 3000
+      });
+    },
+    ({ port }) => connectHttpTransport(port)
   );
 
   exe.demandCommand().parseSync();

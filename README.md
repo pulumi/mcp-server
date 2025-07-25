@@ -94,6 +94,21 @@ To use the containerized server with MCP clients over HTTP (SSE), you can run th
 }
 ```
 
+### Using with MCP Clients over streamable-HTTP
+
+To use the containerized server with MCP clients over streamable-HTTP, you can run the container with the following command:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-p", "3000:3000", "pulumi/mcp-server:latest", "http"]
+    }
+  }
+}
+```
+
 
 
 For Pulumi operations that require access to local Pulumi projects, you'll need to mount the appropriate directories. For example, if your Pulumi project is in `~/projects/my-pulumi-app`:
