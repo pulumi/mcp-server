@@ -13,5 +13,17 @@ export const convertPrompts = {
         outputDir: args.outputDir ?? './pulumi'
       });
     }
+  },
+  'convert-terraform-module-to-typescript': {
+    name: 'convert-terraform-module-to-typescript',
+    description: 'Converts a Terraform module to a Pulumi TypeScript component',
+    args: {
+      outputDir: z.string().describe('The directory to output the TypeScript code to').optional()
+    },
+    handler: async (args: { outputDir?: string }) => {
+      return await promptHandler('convert-terraform-module-to-typescript', {
+        outputDir: args.outputDir ?? './pulumi'
+      });
+    }
   }
 };
