@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import {
-  MockPulumiApiClient,
-  createPulumiSearchApiClient,
-  PulumiSearchApiClient
-} from './pulumi-api-client.js';
+import { createPulumiSearchApiClient, PulumiSearchApiClient } from './pulumi-api-client.js';
 
 export type ResourceSearchArgs = {
   query: string;
@@ -57,13 +53,14 @@ async function getDefaultOrg(): Promise<string> {
 /**
  * Abstract base class for resource search handling
  */
-abstract class ResourceSearchHandler {
+export abstract class ResourceSearchHandlerBase {
   abstract createClient(): PulumiSearchApiClient;
 
   async handle(args: ResourceSearchArgs) {
     // Get org - use provided org or detect default org
     const org = args.org || (await getDefaultOrg());
 
+    // Use client created by virtual function
     const client = this.createClient();
     const apiResponse = await client.searchResources({
       query: args.query,
@@ -114,23 +111,20 @@ abstract class ResourceSearchHandler {
   }
 }
 
-class ProductionResourceSearchHandler extends ResourceSearchHandler {
+class ResourceSearchHandler extends ResourceSearchHandlerBase {
   createClient(): PulumiSearchApiClient {
     return createPulumiSearchApiClient();
   }
 }
 
-class TestResourceSearchHandler extends ResourceSearchHandler {
-  createClient(): PulumiSearchApiClient {
-    return new MockPulumiApiClient();
-  }
+// Global handler instance that can be overridden for testing
+let resourceSearchHandler: ResourceSearchHandlerBase;
+
+export function setResourceSearchHandler(handler: ResourceSearchHandlerBase) {
+  resourceSearchHandler = handler;
 }
 
-// Create the appropriate handler based on test mode
-const handler =
-  process.env.MCP_TEST_MODE === 'true'
-    ? new TestResourceSearchHandler()
-    : new ProductionResourceSearchHandler();
+setResourceSearchHandler(new ResourceSearchHandler());
 
 export const resourceSearchCommands = {
   'resource-search': {
@@ -156,6 +150,6 @@ export const resourceSearchCommands = {
         .optional()
         .describe('Whether to include resource properties in the response (defaults to false)')
     },
-    handler: (args: ResourceSearchArgs) => handler.handle(args)
+    handler: (args: ResourceSearchArgs) => resourceSearchHandler.handle(args)
   }
 };

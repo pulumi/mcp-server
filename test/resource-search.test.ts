@@ -1,8 +1,17 @@
 import { expect } from 'chai';
 import { testClaudeCodeInvocation, ClaudeCodeTest } from './helpers.js';
-import { resourceSearchCommands } from '../src/insights/resource-search.js';
+import {
+  resourceSearchCommands,
+  setResourceSearchHandler
+} from '../src/insights/resource-search.js';
+import { TestResourceSearchHandler } from './mocks/resource-search-handler.js';
 
 describe('Resource Search Tool', function () {
+  // Set up test handler before running tests
+  before(() => {
+    setResourceSearchHandler(new TestResourceSearchHandler());
+  });
+
   describe('Direct Tool Tests (Unit Tests)', () => {
     const commands = resourceSearchCommands;
 
