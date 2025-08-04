@@ -9,8 +9,8 @@ describe('Resource Search Tool', function () {
     describe('Untagged S3 buckets query', () => {
       it('should return acme-bucket for untagged S3 bucket query', async () => {
         const args = {
-          query: 'type:aws:s3:Bucket AND -properties.tags:*'
-          // org will default to 'mock-org' in test mode
+          query: 'type:aws:s3:Bucket AND -properties.tags:*',
+          org: 'mock-org'
         };
 
         const result = await commands['resource-search'].handler(args);
@@ -25,8 +25,8 @@ describe('Resource Search Tool', function () {
     describe('Default query handling', () => {
       it('should return default resource for non-S3 queries', async () => {
         const args = {
-          query: 'package:aws type:lambda:Function'
-          // org will default to 'mock-org' in test mode
+          query: 'package:aws type:lambda:Function',
+          org: 'mock-org'
         };
 
         const result = await commands['resource-search'].handler(args);
@@ -42,7 +42,8 @@ describe('Resource Search Tool', function () {
       it('should pass properties parameter to the search request', async () => {
         const args = {
           query: 'type:aws:s3:Bucket -properties.tags:*',
-          properties: true
+          properties: true,
+          org: 'mock-org'
         };
 
         const result = await commands['resource-search'].handler(args);
@@ -58,7 +59,8 @@ describe('Resource Search Tool', function () {
       it('should handle properties parameter set to false', async () => {
         const args = {
           query: 'type:aws:s3:Bucket -properties.tags:*',
-          properties: false
+          properties: false,
+          org: 'mock-org'
         };
 
         const result = await commands['resource-search'].handler(args);
@@ -73,6 +75,7 @@ describe('Resource Search Tool', function () {
       it('should work without properties parameter (defaults to false)', async () => {
         const args = {
           query: 'type:aws:s3:Bucket -properties.tags:*',
+          org: 'mock-org'
         };
 
         const result = await commands['resource-search'].handler(args);
