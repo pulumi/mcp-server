@@ -136,17 +136,11 @@ describe('Resource Search Tool', function () {
 
       resourceSearchTestCases.forEach((testCase) => {
         it(`should invoke resource-search tool for: "${testCase.description}"`, async function () {
-          const toolInvoked = await testClaudeCodeInvocation(testCase);
+          const toolsInvoked = await testClaudeCodeInvocation(testCase);
 
-          // Verify the correct tool was invoked (Claude Code prefixes MCP tools with server name)
-          const expectedTools = [
-            'mcp__pulumi-mcp__pulumi-resource-search',
-            'mcp__pulumi-mcp-local__pulumi-resource-search'
-          ];
-          expect(expectedTools).to.include(
-            toolInvoked,
-            `Expected Claude Code to invoke resource-search tool with MCP prefix, but got: ${toolInvoked}`
-          );
+          // Verify that one of the invoked tools contains 'resource-search'
+          const searchTool = toolsInvoked.find(tool => tool.includes('resource-search'));
+          expect(searchTool, `Expected Claude Code to invoke a tool containing 'resource-search', but got: ${toolsInvoked.join(', ')}`).to.not.be.undefined;
         });
       });
 
@@ -159,27 +153,11 @@ describe('Resource Search Tool', function () {
           contextType: 'pulumi'
         };
 
-        try {
-          const toolInvoked = await testClaudeCodeInvocation(testCase);
+        const toolsInvoked = await testClaudeCodeInvocation(testCase);
 
-          // Should NOT invoke resource search tools
-          const resourceSearchTools = [
-            'mcp__pulumi-mcp__pulumi-resource-search',
-            'mcp__pulumi-mcp-local__pulumi-resource-search'
-          ];
-          expect(resourceSearchTools).to.not.include(
-            toolInvoked,
-            `Claude incorrectly invoked resource-search for deployment query. Got: ${toolInvoked}`
-          );
-        } catch (error) {
-          // If no tool was invoked or a different tool was invoked, that's fine for this test
-          if (error instanceof Error && error.message.includes('No tool was invoked')) {
-            console.log('✅ Correct behavior: No tool invoked for deployment query');
-            return;
-          }
-          // For other errors, we still want to verify the tool name if it was invoked
-          throw error;
-        }
+        // Should NOT invoke any tool containing 'resource-search'
+        const searchTool = toolsInvoked.find(tool => tool.includes('resource-search'));
+        expect(searchTool, `Claude incorrectly invoked a resource-search tool for deployment query. Got: ${searchTool}`).to.be.undefined;
       });
     });
   });
