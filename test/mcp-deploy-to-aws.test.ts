@@ -1,9 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect } from 'chai';
 import { listTools, listPrompts, callTool } from './helpers.js';
+import { setDeployHandler, deployCommands } from '../src/deploy/deploy.js';
+import { TestDeployHandler } from './mocks/deploy-handler.js';
 
 describe('MCP Tool: deploy-to-aws', function () {
-  describe('Tool Invocation', () => {
+  // Set up test handler before running tests
+  before(() => {
+    setDeployHandler(new TestDeployHandler());
+  });
+
+  describe('Direct Tool Tests (Unit Tests)', () => {
+    const commands = deployCommands;
+
+    it('should successfully invoke deploy-to-aws tool directly', async () => {
+      const result = await commands['deploy-to-aws'].handler();
+
+      // Validate response structure
+      expect(result.content).to.have.length.greaterThan(0);
+      const firstContent = result.content[0];
+      expect(firstContent.type).to.equal('text');
+      expect(firstContent.text).to.not.equal(undefined);
+
+      // Validate test mode response
+      expect(firstContent.text).to.include('deploy-to-aws tool invoked successfully in test mode');
+    });
+  });
+
+  describe('MCP Inspector Tests', () => {
     it('should successfully invoke deploy-to-aws tool with no parameters', async function () {
       const response = await callTool('deploy-to-aws');
 
@@ -13,8 +37,8 @@ describe('MCP Tool: deploy-to-aws', function () {
       expect(firstContent.type).to.equal('text');
       expect(firstContent.text).to.not.equal(undefined);
 
-      // Validate test mode response
-      expect(firstContent.text).to.include('deploy-to-aws tool invoked successfully in test mode');
+      // Validate production response (integration test)
+      expect(firstContent.text).to.include('Activating Official Pulumi Deployment Assistant');
     });
 
     it('should fail when called with extra unneeded arguments', async function () {

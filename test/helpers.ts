@@ -127,9 +127,8 @@ export const bucketName = bucket.id;`;
   }
 }
 
-
 // Claude Code SDK testing function
-export async function testClaudeCodeInvocation(testCase: ClaudeCodeTest): Promise<string> {
+export async function testClaudeCodeInvocation(testCase: ClaudeCodeTest): Promise<string[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -143,23 +142,19 @@ export async function testClaudeCodeInvocation(testCase: ClaudeCodeTest): Promis
   // Create project context
   const projectContext = getProjectContext(testCase.contextType);
 
-  let toolInvoked: string | null = null;
-  let toolFound = false;
+  const toolsInvoked: string[] = [];
 
   try {
     // Use Claude Code SDK to process the request
     for await (const message of query({
       prompt: `${projectContext}\n\n${testCase.query}`,
       options: {
-        maxTurns: 1,
+        maxTurns: 3, // Allow more turns for Claude Code to complete the task after planning
         // Configure our MCP server
         mcpServers: {
           'pulumi-mcp': {
             command: 'node',
-            args: [path.resolve(__dirname, '../dist/index.js'), 'stdio'],
-            env: {
-              MCP_TEST_MODE: 'true'
-            }
+            args: [path.resolve(__dirname, '../dist/index.js'), 'stdio']
           }
         }
       }
@@ -170,25 +165,16 @@ export async function testClaudeCodeInvocation(testCase: ClaudeCodeTest): Promis
         if ('message' in message && (message as any).message?.content) {
           for (const item of (message as any).message.content) {
             if (item.type === 'tool_use') {
-              toolInvoked = item.name;
-              toolFound = true;
-              console.log('✅ Tool invoked by Claude Code:', toolInvoked);
-              break;
+              toolsInvoked.push(item.name);
             }
           }
         }
       }
-
-      if (toolFound) break;
     }
   } catch (error) {
     console.error('Claude Code SDK error:', error);
     throw error;
   }
 
-  if (!toolInvoked) {
-    throw new Error(`No tool was invoked for query: "${testCase.query}"`);
-  }
-
-  return toolInvoked;
+  return toolsInvoked;
 }
