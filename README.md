@@ -148,7 +148,7 @@ The server also provides prompts that can be used by MCP clients:
 3.  Build the project: `make build`
 4.  Test the project: `make test`
 
-### Local Testing
+### How to Install Locally
 
 For local testing using Claude Code, you can use the provided scripts:
 
@@ -168,6 +168,21 @@ npm pack
 ```
 
 The install script will remove any existing `pulumi-mcp-local` installation and install the current version from your local directory. Optionally, you can provide a `.tgz` file created with `npm pack` to test the packaged version. Run Claude Code and type the `/mcp` command to see it.
+
+For other MCP clients like Claude Desktop or Windsurf, you can manually configure the local server:
+
+```json
+{
+  "mcpServers": {
+    "pulumi-mcp-local": {
+      "command": "node",
+      "args": ["/path/to/your/mcp-server/dist/index.js", "stdio"]
+    }
+  }
+}
+```
+
+Replace `/path/to/your/mcp-server` with the absolute path to your local repository directory.
 
 ### List existing tools
 
