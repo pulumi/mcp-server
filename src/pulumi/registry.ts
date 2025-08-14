@@ -103,7 +103,9 @@ export const registryCommands = function (cacheDir: string) {
     );
 
     if (!fs.existsSync(cacheFile)) {
-      const output = execFileSync('pulumi', ['package', 'get-schema', providerWithVersion]);
+      const output = execFileSync('pulumi', ['package', 'get-schema', providerWithVersion], {
+        maxBuffer: 50 * 1024 * 1024 // 50MB buffer instead of default 1MB (AWS provider schema is ~37MB)
+      });
       fs.writeFileSync(cacheFile, output);
     }
     return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
@@ -198,8 +200,10 @@ export const registryCommands = function (cacheDir: string) {
           )
       },
       handler: async (args: GetResourceArgs) => {
+        // Load full schema (can be large) but we'll filter to only relevant resources
         const schema = await getSchema(args.provider, args.version);
-        // Find the resource entry [key, data] directly
+
+        // Find the resource entry [key, data] directly - filtering massive schema to specific resource
         const resourceEntry = Object.entries(schema.resources).filter(([key]) => {
           const [, modulePath, resourceName] = key.split(':');
           const mainModule = modulePath.split('/')[0];
@@ -238,7 +242,7 @@ export const registryCommands = function (cacheDir: string) {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify(resources)
+                text: JSON.stringify(resources) // Return filtered resource data (much smaller than the full schema)
               }
             ]
           };
