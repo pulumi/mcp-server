@@ -4,6 +4,8 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@pulumi/mcp-server/badge" />
 </a>
 
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/pulumi/mcp-server)](https://archestra.ai/mcp-catalog/pulumi__mcp-server)
+
 > **Note:** This MCP server is currently under active development. Its API (including available commands and their arguments) is experimental and may introduce breaking changes without notice. Please file an issue on [GitHub](https://github.com/pulumi/mcp-server/issues) if you encounter bugs or need support for additional Pulumi commands.
 
 A server implementing the [Model Context Protocol](https://modelcontextprotocol.io) (MCP) for interacting with Pulumi CLI using the Pulumi Automation API and Pulumi Cloud API.
