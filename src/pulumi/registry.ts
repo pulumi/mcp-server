@@ -227,6 +227,10 @@ export const registryCommands = function (cacheDir: string) {
                 outputProperties[key] = value;
               }
             }
+            const requiredOutputs = schema.required.filter(
+              (name) => !(name in schema.inputProperties)
+            );
+
             return {
               // for now leaving out:
               // - `description`: Can be pretty large and contains all language examples (if we knew the language we could extract the specific language example)
@@ -234,7 +238,7 @@ export const registryCommands = function (cacheDir: string) {
               requiredInputs: schema.requiredInputs,
               inputProperties: schema.inputProperties,
               outputProperties: outputProperties,
-              requiredOutputs: schema.required
+              requiredOutputs: requiredOutputs
             };
           });
           return {
