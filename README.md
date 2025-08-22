@@ -52,6 +52,14 @@ Or if you prefer HTTP with Server-Sent Events (SSE) instead of `stdio`:
 }
 ```
 
+### Devin
+
+For [Devin](https://app.devin.ai), you can set up the Pulumi MCP Server by:
+
+1. Navigate to https://app.devin.ai/settings/mcp-marketplace/setup/pulumi
+2. Provide your Pulumi access token, which can be obtained from the Access tokens section in the sidebar of the Pulumi dashboard
+3. Click "Enable"
+
 ## Docker Container
 
 You can also run the Pulumi MCP Server as a Docker container. This approach eliminates the need to install Node.js and the package dependencies directly on your host machine.
