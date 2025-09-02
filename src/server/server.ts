@@ -9,6 +9,7 @@ import { logger } from '../logging/logging.js';
 import { deployCommands, deployPrompts } from '../deploy/deploy.js';
 import { convertPrompts } from '../pulumi/convert.js';
 import { resourceSearchCommands } from '../insights/resource-search.js';
+import { startTask } from '../agents/start-task.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -122,6 +123,19 @@ export class Server extends McpServer {
         } catch (error) {
           logger.error(`Error in prompt ${promptName}:`, error);
           throw error;
+        }
+      });
+    });
+
+    // Register Pulumi Agents deeplink commands
+    Object.entries(startTask).forEach(([commandName, command]) => {
+      const toolName = `pulumi-agents-${commandName}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.tool(toolName, command.description, command.schema, async (args: any) => {
+        try {
+          return await command.handler(args);
+        } catch (error) {
+          return handleError(error, toolName);
         }
       });
     });
