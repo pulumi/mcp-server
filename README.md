@@ -62,11 +62,19 @@ For [Devin](https://app.devin.ai), you can set up the Pulumi MCP Server by:
 
 ## Docker Container
 
-You can also run the Pulumi MCP Server as a Docker container. This approach eliminates the need to install Node.js and the package dependencies directly on your host machine.
+You can also run the Pulumi MCP Server as a Docker container. This approach eliminates the need to install Node.js and the package dependencies directly on your host machine. The image may be pulled from the docker repository, or built on the device with all local changes included.
+
+### Using the Official Image
+
+To download the official Docker image from the repository:
+
+```bash
+docker pull pulumi/mcp-server:latest
+```
 
 ### Building the Container
 
-To build the container:
+To build the container locally:
 
 ```bash
 docker build -t pulumi/mcp-server:latest .
@@ -75,6 +83,19 @@ docker build -t pulumi/mcp-server:latest .
 ### Using with MCP Clients
 
 To use the containerized server with MCP clients, you'll need to configure the client to use the Docker container. For example, in Claude desktop's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "pulumi": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "mcp/pulumi:latest", "stdio"]
+    }
+  }
+}
+```
+
+Or if using a locally built image:
 
 ```json
 {
