@@ -61,7 +61,7 @@ You can also run the Pulumi MCP Server as a Docker container. This approach elim
 To download the official Docker image from the repository:
 
 ```bash
-docker pull mcp/pulumi:latest
+docker pull pulumi/mcp-server:latest
 ```
 
 ### Building the Container
