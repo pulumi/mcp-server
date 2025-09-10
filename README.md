@@ -39,14 +39,14 @@ For Claude Desktop, you can include Pulumi MCP Server in the MCP configuration f
 }
 ```
 
-Or if you prefer HTTP with Server-Sent Events (SSE) instead of `stdio`:
+Or if you prefer HTTP instead of `stdio`:
 
 ```json
 {
   "mcpServers": {
     "pulumi": {
       "command": "npx",
-      "args": ["@pulumi/mcp-server@latest","sse"]
+      "args": ["@pulumi/mcp-server@latest","http"]
     }
   }
 }
@@ -87,20 +87,47 @@ To use the containerized server with MCP clients, you'll need to configure the c
 }
 ```
 
-### Using with MCP Clients over HTTP (SSE)
+### Using with MCP Clients over HTTP
 
-To use the containerized server with MCP clients over HTTP (SSE), you can run the container with the following command:
+The Pulumi MCP server supports HTTP transport for web-based integrations. Since most MCP clients expect STDIO communication, you can use a transport bridge like [supergateway](https://github.com/supercorp-ai/supergateway) to connect STDIO-based clients to HTTP servers.
+
+#### Quick Start Script
+
+Use the provided script to build and run the HTTP server:
+
+```bash
+./docker-run-http.sh
+```
+
+This script builds the Docker image and starts the container in HTTP mode on port 3000.
+
+#### Bridge Configuration for Claude Desktop
+
+To connect Claude Desktop (which uses STDIO) to the HTTP server, use supergateway as a transport bridge:
 
 ```json
 {
   "mcpServers": {
     "pulumi": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-p", "3000:3000", "pulumi/mcp-server:latest", "sse"]
+      "args": [
+        "run",
+        "-i", 
+        "--rm",
+        "supercorp/supergateway",
+        "--streamableHttp",
+        "http://host.docker.internal:3000/mcp"
+      ]
     }
   }
 }
 ```
+
+This configuration:
+- Runs supergateway in a Docker container
+- Connects to your HTTP server using `host.docker.internal` (Docker's host machine reference)
+- Bridges STDIO ↔ HTTP communication
+- Handles session management automatically
 
 
 
