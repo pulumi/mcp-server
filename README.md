@@ -185,7 +185,7 @@ To connect Claude Desktop (which uses STDIO) to the HTTP server, copy the follow
       "command": "docker",
       "args": [
         "run",
-        "-i", 
+        "-i",
         "--rm",
         "supercorp/supergateway",
         "--streamableHttp",
