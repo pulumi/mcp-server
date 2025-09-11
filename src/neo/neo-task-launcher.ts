@@ -14,7 +14,7 @@ export const neoTaskLauncherCommands = {
         .string()
         .optional()
         .describe(
-          'Optional conversation context - summary of what the user has been working on or discussing'
+          'Optional conversation context with details of work done so far. Include: 1) Summary of what the user has been working on, 2) For any files modified, provide git diff format showing the changes, 3) Textual explanation of what was changed and why. Example: "The user has been working on authentication. Files modified: src/auth.ts - Added token support: ```diff\\n- function login(user) {\\n+ function login(user, token) {\\n```\\nThis change adds token-based auth for better security."'
         )
     },
     handler: async (args: NeoTaskLauncherArgs) => {
@@ -44,13 +44,16 @@ export const neoTaskLauncherCommands = {
         };
       }
 
-      const contextSection = args.context ? args.context : '';
+      const content =
+        args.context && args.context.trim() !== ''
+          ? `Conversation context:
 
-      const content = `# Conversation context
-${contextSection}
+${args.context}
 
-# User request
-${args.query}`;
+User request:
+
+${args.query}`
+          : args.query;
 
       try {
         const response = await fetch('https://api.pulumi.com/api/preview/agents/pulumi/tasks', {
