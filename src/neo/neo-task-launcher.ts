@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 
 type NeoTaskLauncherArgs = {
   query: string;
@@ -15,6 +14,16 @@ interface NeoEvent {
     timestamp?: string;
     content?: string;
     is_final?: boolean;
+    // Approval request fields
+    id?: string; // Approval request ID (different from event ID)
+    message?: string;
+    buttons?: string[];
+    approval_type?: string;
+    source?: string;
+    context?: {
+      tool_call_id?: string;
+      tool_name?: string;
+    };
   };
 }
 
@@ -22,38 +31,51 @@ interface NeoEvent {
 let activeTaskId: string | null = null;
 // Timestamp watermark to filter out old messages (ISO string format)
 let messageWatermark: string | null = null;
+// Pending approval request ID
+let pendingApprovalId: string | null = null;
 
 function debugLog(message: string) {
+  const logFile = process.env.MCP_LOG_FILE;
+  if (!logFile) {
+    return;
+  }
+
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
   try {
-    fs.appendFileSync(path.join(process.env.HOME || '~', 'test/mcp.log'), logMessage);
+    fs.appendFileSync(logFile, logMessage);
   } catch {
     // Silently ignore logging errors
   }
 }
 
-function isAssistantMessage(event: unknown): event is NeoEvent {
-  return (
-    event &&
-    typeof event === 'object' &&
-    event !== null &&
-    'type' in event &&
-    typeof (event as Record<string, unknown>).type === 'string' &&
-    'id' in event &&
-    typeof (event as Record<string, unknown>).id === 'string' &&
-    (event as Record<string, unknown>).type === 'agentResponse' &&
-    'eventBody' in event &&
-    (event as Record<string, unknown>).eventBody &&
-    typeof (event as Record<string, unknown>).eventBody === 'object' &&
-    (event as Record<string, unknown>).eventBody !== null &&
-    'type' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>) &&
-    ((event as Record<string, unknown>).eventBody as Record<string, unknown>).type ===
-      'assistant_message' &&
-    'timestamp' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>) &&
-    typeof ((event as Record<string, unknown>).eventBody as Record<string, unknown>).timestamp ===
+function isRelevantMessage(event: unknown): event is NeoEvent {
+  if (
+    !event ||
+    typeof event !== 'object' ||
+    event === null ||
+    !('type' in event) ||
+    typeof (event as Record<string, unknown>).type !== 'string' ||
+    !('id' in event) ||
+    typeof (event as Record<string, unknown>).id !== 'string' ||
+    (event as Record<string, unknown>).type !== 'agentResponse' ||
+    !('eventBody' in event) ||
+    !(event as Record<string, unknown>).eventBody ||
+    typeof (event as Record<string, unknown>).eventBody !== 'object' ||
+    (event as Record<string, unknown>).eventBody === null ||
+    !('type' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>)) ||
+    !('timestamp' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>)) ||
+    typeof ((event as Record<string, unknown>).eventBody as Record<string, unknown>).timestamp !==
       'string'
-  );
+  ) {
+    return false;
+  }
+
+  const eventBodyType = ((event as Record<string, unknown>).eventBody as Record<string, unknown>)
+    .type;
+
+  // Accept both assistant messages and approval requests
+  return eventBodyType === 'assistant_message' || eventBodyType === 'user_approval_request';
 }
 
 async function pollTaskEvents(taskId: string, token: string): Promise<string[]> {
@@ -64,7 +86,7 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
   while (Date.now() - startTime < maxTimeout) {
     try {
       const response = await fetch(
-        `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}/events`,
+        `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}/events?pageSize=100`,
         {
           method: 'GET',
           headers: {
@@ -83,30 +105,57 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
       // Filter out all old messages first
       const newMessages: NeoEvent[] =
         data.events?.filter((event: unknown): event is NeoEvent => {
-          if (!isAssistantMessage(event)) return false;
+          if (!isRelevantMessage(event)) return false;
           const eventTimestamp = event.eventBody!.timestamp!;
           return !messageWatermark || eventTimestamp > messageWatermark;
         }) || [];
 
       debugLog(`Found ${newMessages.length} new messages with watermark: ${messageWatermark}`);
 
-      // Find the final message (if any) in one pass
-      const finalMessage = newMessages.find((event) => event.eventBody?.is_final === true);
+      // Find the final message or approval request (if any) in one pass
+      const finalMessage = newMessages.find(
+        (event) =>
+          event.eventBody?.is_final === true || event.eventBody?.type === 'user_approval_request'
+      );
 
-      // If final found, return all new messages and update watermark
+      // If final found or approval request, return all new messages and update watermark
       if (finalMessage) {
-        const messages = newMessages
-          .map((event) => event.eventBody?.content)
-          .filter(Boolean) as string[];
+        const messages: string[] = [];
+
+        // Process regular messages
+        newMessages.forEach((event) => {
+          if (event.eventBody?.content) {
+            messages.push(event.eventBody.content);
+          }
+        });
+
+        // Check for approval request
+        const approvalRequest = newMessages.find(
+          (event) => event.eventBody?.type === 'user_approval_request'
+        );
+
+        if (approvalRequest && approvalRequest.eventBody?.message) {
+          // Store the approval ID from the eventBody (not the event ID)
+          pendingApprovalId = approvalRequest.eventBody.id || null;
+          debugLog(`Stored pending approval ID: ${pendingApprovalId}`);
+
+          // Format approval message for user
+          let approvalMessage = approvalRequest.eventBody.message;
+
+          approvalMessage += '\n\nNeo is waiting for your approval.';
+
+          messages.push(approvalMessage);
+        }
 
         // Log details for debugging
         newMessages.forEach((event) => {
           const eventId = event.id;
           const eventTimestamp = event.eventBody?.timestamp;
           const isFinal = event.eventBody?.is_final;
+          const isApproval = event.eventBody?.type === 'user_approval_request';
           const hasContent = !!event.eventBody?.content;
           debugLog(
-            `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, hasContent: ${hasContent}`
+            `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, isApproval: ${isApproval}, hasContent: ${hasContent}`
           );
         });
 
@@ -128,6 +177,45 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
   }
 
   throw new Error('Task polling timed out after 5 minutes');
+}
+
+async function sendApproval(
+  taskId: string,
+  token: string,
+  approvalId: string,
+  approved: boolean
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event: {
+            type: 'user_confirmation',
+            timestamp: new Date().toISOString(),
+            approval_request_id: approvalId,
+            ok: approved
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Approval API returned status ${response.status}: ${errorText}`);
+    }
+
+    debugLog(`Sent approval response: ${approved} for request ${approvalId}`);
+  } catch (error) {
+    throw new Error(
+      `Error sending approval: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
 async function sendFollowUpMessage(
@@ -217,6 +305,58 @@ export const neoTaskLauncherCommands = {
             }
           ]
         };
+      }
+
+      // If there's a pending approval and user wants to approve
+      if (pendingApprovalId && activeTaskId) {
+        debugLog(`User approved with: "${args.query}"`);
+
+        try {
+          // Set watermark to current time before sending approval
+          const approvalTime = new Date().toISOString();
+          messageWatermark = approvalTime;
+          debugLog(`Set watermark to ${messageWatermark} before sending approval`);
+
+          await sendApproval(activeTaskId, token, pendingApprovalId, true);
+
+          // Clear the approval ID since it's been processed
+          const approvedId = pendingApprovalId;
+          pendingApprovalId = null;
+          debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
+
+          // Continue polling for Neo's response after approval
+          const messages = await pollTaskEvents(activeTaskId, token);
+
+          const content = [
+            {
+              type: 'text' as const,
+              text: `Approval sent to Neo task ${activeTaskId}\n\nNeo's response:`
+            }
+          ];
+
+          // Add each message as a separate content block
+          messages.forEach((message) => {
+            content.push({
+              type: 'text' as const,
+              text: message
+            });
+          });
+
+          return {
+            description: 'Approval sent and Neo response received',
+            content: content
+          };
+        } catch (error) {
+          return {
+            description: 'Approval failed',
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to send approval: ${error instanceof Error ? error.message : 'Unknown error'}`
+              }
+            ]
+          };
+        }
       }
 
       const requestContent =
@@ -316,6 +456,7 @@ ${args.query}`
     handler: async () => {
       activeTaskId = null;
       messageWatermark = null; // Clear watermark when resetting
+      pendingApprovalId = null; // Clear pending approval when resetting
       return {
         description: 'Neo conversation reset',
         content: [
