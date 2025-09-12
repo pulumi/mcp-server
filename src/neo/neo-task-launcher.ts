@@ -7,6 +7,17 @@ type NeoTaskLauncherArgs = {
   context?: string;
 };
 
+interface NeoEvent {
+  type: string;
+  id: string;
+  eventBody?: {
+    type?: string;
+    timestamp?: string;
+    content?: string;
+    is_final?: boolean;
+  };
+}
+
 // Global storage for the active Neo task ID to enable follow-up conversations
 let activeTaskId: string | null = null;
 // Timestamp watermark to filter out old messages (ISO string format)
@@ -20,6 +31,29 @@ function debugLog(message: string) {
   } catch {
     // Silently ignore logging errors
   }
+}
+
+function isAssistantMessage(event: unknown): event is NeoEvent {
+  return (
+    event &&
+    typeof event === 'object' &&
+    event !== null &&
+    'type' in event &&
+    typeof (event as Record<string, unknown>).type === 'string' &&
+    'id' in event &&
+    typeof (event as Record<string, unknown>).id === 'string' &&
+    (event as Record<string, unknown>).type === 'agentResponse' &&
+    'eventBody' in event &&
+    (event as Record<string, unknown>).eventBody &&
+    typeof (event as Record<string, unknown>).eventBody === 'object' &&
+    (event as Record<string, unknown>).eventBody !== null &&
+    'type' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>) &&
+    ((event as Record<string, unknown>).eventBody as Record<string, unknown>).type ===
+      'assistant_message' &&
+    'timestamp' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>) &&
+    typeof ((event as Record<string, unknown>).eventBody as Record<string, unknown>).timestamp ===
+      'string'
+  );
 }
 
 async function pollTaskEvents(taskId: string, token: string): Promise<string[]> {
@@ -46,74 +80,39 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
 
       const data = await response.json();
 
-      // Check if we found a NEW final message (newer than our watermark)
-      let foundNewFinalMessage = false;
-      if (data.events) {
-        for (const event of data.events) {
-          if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
-            const eventTimestamp = event.eventBody.timestamp;
-            const isNewMessage =
-              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
+      // Filter out all old messages first
+      const newMessages: NeoEvent[] =
+        data.events?.filter((event: unknown): event is NeoEvent => {
+          if (!isAssistantMessage(event)) return false;
+          const eventTimestamp = event.eventBody!.timestamp!;
+          return !messageWatermark || eventTimestamp > messageWatermark;
+        }) || [];
 
-            if (event.eventBody.is_final === true && isNewMessage) {
-              foundNewFinalMessage = true;
-              break;
-            }
-          }
-        }
-      }
+      debugLog(`Found ${newMessages.length} new messages with watermark: ${messageWatermark}`);
 
-      // If we found a new final message, collect all new messages since watermark and return
-      if (foundNewFinalMessage) {
-        const messages: string[] = [];
-        debugLog(`Found final message, processing events with watermark: ${messageWatermark}`);
-        for (const event of data.events) {
-          if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
-            const eventId = event.id;
-            const content = event.eventBody.content;
-            const eventTimestamp = event.eventBody.timestamp;
-            const isFinal = event.eventBody.is_final;
+      // Find the final message (if any) in one pass
+      const finalMessage = newMessages.find((event) => event.eventBody?.is_final === true);
 
-            // Check if this message is newer than our watermark
-            const isNewMessage =
-              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
+      // If final found, return all new messages and update watermark
+      if (finalMessage) {
+        const messages = newMessages
+          .map((event) => event.eventBody?.content)
+          .filter(Boolean) as string[];
 
-            debugLog(
-              `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, isNewMessage: ${isNewMessage}, hasContent: ${!!content}`
-            );
+        // Log details for debugging
+        newMessages.forEach((event) => {
+          const eventId = event.id;
+          const eventTimestamp = event.eventBody?.timestamp;
+          const isFinal = event.eventBody?.is_final;
+          const hasContent = !!event.eventBody?.content;
+          debugLog(
+            `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, hasContent: ${hasContent}`
+          );
+        });
 
-            if (content && eventId && isNewMessage) {
-              debugLog(`Adding message ${eventId} to result`);
-              messages.push(content);
-            } else if (content && eventId) {
-              debugLog(`Skipping message ${eventId} - older than watermark`);
-            }
-          }
-        }
-
-        // Update watermark to the latest timestamp of messages we're returning
-        let latestReturnedTimestamp = messageWatermark;
-        for (const event of data.events) {
-          if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
-            const eventTimestamp = event.eventBody.timestamp;
-            const isNewMessage =
-              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
-
-            if (
-              isNewMessage &&
-              eventTimestamp &&
-              (!latestReturnedTimestamp || eventTimestamp > latestReturnedTimestamp)
-            ) {
-              latestReturnedTimestamp = eventTimestamp;
-            }
-          }
-        }
-
-        if (latestReturnedTimestamp && latestReturnedTimestamp !== messageWatermark) {
-          messageWatermark = latestReturnedTimestamp;
-          debugLog(`Updated watermark to: ${messageWatermark}`);
-        }
-
+        // Update watermark to final message timestamp
+        messageWatermark = finalMessage.eventBody?.timestamp || null;
+        debugLog(`Updated watermark to: ${messageWatermark}`);
         debugLog(`Returning ${messages.length} messages`);
         return messages;
       }
