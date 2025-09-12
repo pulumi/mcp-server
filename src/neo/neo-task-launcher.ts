@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 type NeoTaskLauncherArgs = {
   query: string;
@@ -10,15 +9,15 @@ type NeoTaskLauncherArgs = {
 
 // Global storage for the active Neo task ID to enable follow-up conversations
 let activeTaskId: string | null = null;
-// Track seen message IDs to avoid duplicate responses
-let seenMessageIds: Set<string> = new Set();
+// Timestamp watermark to filter out old messages (ISO string format)
+let messageWatermark: string | null = null;
 
 function debugLog(message: string) {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
   try {
     fs.appendFileSync(path.join(process.env.HOME || '~', 'test/mcp.log'), logMessage);
-  } catch (error) {
+  } catch {
     // Silently ignore logging errors
   }
 }
@@ -47,42 +46,74 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
 
       const data = await response.json();
 
-      // Check if we found the final message
-      let foundFinalMessage = false;
+      // Check if we found a NEW final message (newer than our watermark)
+      let foundNewFinalMessage = false;
       if (data.events) {
         for (const event of data.events) {
           if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
-            if (event.eventBody.is_final === true) {
-              foundFinalMessage = true;
+            const eventTimestamp = event.eventBody.timestamp;
+            const isNewMessage =
+              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
+
+            if (event.eventBody.is_final === true && isNewMessage) {
+              foundNewFinalMessage = true;
               break;
             }
           }
         }
       }
 
-      // If we found the final message, collect all unseen messages and return
-      if (foundFinalMessage) {
+      // If we found a new final message, collect all new messages since watermark and return
+      if (foundNewFinalMessage) {
         const messages: string[] = [];
-        debugLog('Found final message, processing events...');
+        debugLog(`Found final message, processing events with watermark: ${messageWatermark}`);
         for (const event of data.events) {
           if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
             const eventId = event.id;
             const content = event.eventBody.content;
+            const eventTimestamp = event.eventBody.timestamp;
             const isFinal = event.eventBody.is_final;
-            
-            debugLog(`Event ${eventId}, isFinal: ${isFinal}, hasSeen: ${seenMessageIds.has(eventId)}, hasContent: ${!!content}`);
-            
-            if (content && eventId) {
-              if (!seenMessageIds.has(eventId)) {
-                debugLog(`Adding message ${eventId} to result`);
-                messages.push(content);
-                seenMessageIds.add(eventId); // Mark as seen since we're returning it
-              } else {
-                debugLog(`Skipping message ${eventId} - already seen`);
-              }
+
+            // Check if this message is newer than our watermark
+            const isNewMessage =
+              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
+
+            debugLog(
+              `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, isNewMessage: ${isNewMessage}, hasContent: ${!!content}`
+            );
+
+            if (content && eventId && isNewMessage) {
+              debugLog(`Adding message ${eventId} to result`);
+              messages.push(content);
+            } else if (content && eventId) {
+              debugLog(`Skipping message ${eventId} - older than watermark`);
             }
           }
         }
+
+        // Update watermark to the latest timestamp of messages we're returning
+        let latestReturnedTimestamp = messageWatermark;
+        for (const event of data.events) {
+          if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
+            const eventTimestamp = event.eventBody.timestamp;
+            const isNewMessage =
+              !messageWatermark || (eventTimestamp && eventTimestamp > messageWatermark);
+
+            if (
+              isNewMessage &&
+              eventTimestamp &&
+              (!latestReturnedTimestamp || eventTimestamp > latestReturnedTimestamp)
+            ) {
+              latestReturnedTimestamp = eventTimestamp;
+            }
+          }
+        }
+
+        if (latestReturnedTimestamp && latestReturnedTimestamp !== messageWatermark) {
+          messageWatermark = latestReturnedTimestamp;
+          debugLog(`Updated watermark to: ${messageWatermark}`);
+        }
+
         debugLog(`Returning ${messages.length} messages`);
         return messages;
       }
@@ -100,34 +131,17 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
   throw new Error('Task polling timed out after 5 minutes');
 }
 
-async function sendFollowUpMessage(taskId: string, token: string, message: string): Promise<string[]> {
+async function sendFollowUpMessage(
+  taskId: string,
+  token: string,
+  message: string
+): Promise<string[]> {
   try {
-    // First, get the current state to know what messages already exist
-    const preResponse = await fetch(
-      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}/events`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    const preMessages = new Set<string>();
-    if (preResponse.ok) {
-      const preData = await preResponse.json();
-      if (preData.events) {
-        for (const event of preData.events) {
-          if (event.type === 'agentResponse' && event.eventBody?.type === 'assistant_message') {
-            if (event.id) {
-              preMessages.add(event.id);
-            }
-          }
-        }
-      }
-    }
-    debugLog(`Before follow-up: found ${preMessages.size} existing messages`);
+    // Set watermark to current time before sending follow-up
+    // This ensures we only get messages that come after this point
+    const followUpTime = new Date().toISOString();
+    messageWatermark = followUpTime;
+    debugLog(`Set watermark to ${messageWatermark} before sending follow-up`);
 
     // Send the follow-up message
     const response = await fetch(
@@ -142,7 +156,7 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
           event: {
             type: 'user_message',
             content: message,
-            timestamp: new Date().toISOString()
+            timestamp: followUpTime
           }
         })
       }
@@ -156,12 +170,8 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
       throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
     }
 
-    // Add pre-existing messages to seen set so we only return new ones
-    for (const msgId of preMessages) {
-      seenMessageIds.add(msgId);
-    }
-    debugLog(`Added ${preMessages.size} pre-existing messages to seenMessageIds`);
-    
+    debugLog(`Follow-up message sent, polling for responses newer than ${messageWatermark}`);
+
     // Poll for new responses after sending the follow-up message
     return await pollTaskEvents(taskId, token);
   } catch (error) {
@@ -283,8 +293,8 @@ ${args.query}`
         });
 
         return {
-          description: isFollowUp 
-            ? 'Neo follow-up completed successfully' 
+          description: isFollowUp
+            ? 'Neo follow-up completed successfully'
             : 'Neo task completed successfully',
           content: content
         };
@@ -306,7 +316,7 @@ ${args.query}`
     schema: {},
     handler: async () => {
       activeTaskId = null;
-      seenMessageIds.clear(); // Clear seen messages when resetting
+      messageWatermark = null; // Clear watermark when resetting
       return {
         description: 'Neo conversation reset',
         content: [
