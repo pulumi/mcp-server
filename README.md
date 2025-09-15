@@ -4,7 +4,7 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@pulumi/mcp-server/badge" />
 </a>
 
-The Pulumi Model Context Protocol Server enables advaced Infrastructure as Code development capabilities for connected agents.
+The Pulumi MCP Server enables advanced Infrastructure as Code development capabilities for connected agents.
 
 ## Features
 
