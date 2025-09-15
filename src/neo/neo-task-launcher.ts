@@ -7,7 +7,8 @@ type NeoTaskLauncherArgs = {
 
 export const neoTaskLauncherCommands = {
   'neo-task-launcher': {
-    description: 'Launch a Neo task when user asks Neo to do something',
+    description:
+      'Launch a Neo task when user asks Neo to perform a task. Pulumi Neo is a purpose-built cloud infrastructure automation agent.',
     schema: {
       query: z.string().describe('The task query to send to Neo (what the user wants Neo to do)'),
       context: z
