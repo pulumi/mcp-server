@@ -295,7 +295,9 @@ async function sendFollowUpMessage(
       throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
     }
 
-    debugLog(`Follow-up sent to task ${taskId}, polling for response from sequence ${messageCache.length}`);
+    debugLog(
+      `Follow-up sent to task ${taskId}, polling for response from sequence ${messageCache.length}`
+    );
 
     // Poll for Neo's response (continue from current message count)
     return await pollTaskEvents(taskId, token, messageCache.length);
@@ -309,7 +311,7 @@ async function sendFollowUpMessage(
 export const neoTaskLauncherCommands = {
   'neo-task-launcher': {
     description:
-      'Launch and monitor Neo tasks step by step. If the JSON result has `has_more=true`, call this tool again with `sinceSeq=next_seq`. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
+      'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. If the JSON result has `has_more=true`, call this tool again with `sinceSeq=next_seq`. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
     schema: {
       query: z.string().describe('The task query to send to Neo (what the user wants Neo to do)'),
       context: z

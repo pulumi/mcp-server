@@ -4,7 +4,7 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@pulumi/mcp-server/badge" />
 </a>
 
-The Pulumi Model Context Protocol Server enables advaced Infrastructure as Code development capabilities for connected agents.
+The Pulumi MCP Server enables advanced Infrastructure as Code development capabilities for connected agents.
 
 ## Features
 
@@ -22,6 +22,7 @@ The Pulumi Model Context Protocol Server enables advaced Infrastructure as Code 
 | `pulumi-cli-stack-output` | Retrieve deployment outputs like URLs and resource IDs from your infrastructure stacks |
 | `pulumi-cli-refresh` | Sync your Pulumi state with actual cloud resources to detect drift and manual changes |
 | `pulumi-resource-search` | Discover, count, and analyze your deployed infrastructure across all cloud providers. |
+| `neo-task-launcher` | Interact with Pulumi Neo for advanced infrastructure tasks |
 
 ### Available Prompts
 
