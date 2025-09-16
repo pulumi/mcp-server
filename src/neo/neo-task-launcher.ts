@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 type NeoTaskLauncherArgs = {
   query: string;
   context?: string;
+  sinceSeq?: number;
 };
 
 interface NeoEvent {
@@ -29,10 +30,10 @@ interface NeoEvent {
 
 // Global storage for the active Neo task ID to enable follow-up conversations
 let activeTaskId: string | null = null;
-// Timestamp watermark to filter out old messages (ISO string format)
-let messageWatermark: string | null = null;
 // Pending approval request ID
 let pendingApprovalId: string | null = null;
+// Global message cache to track sequence numbers
+let messageCache: NeoEvent[] = [];
 
 function debugLog(message: string) {
   const logFile = process.env.MCP_LOG_FILE;
@@ -78,10 +79,18 @@ function isRelevantMessage(event: unknown): event is NeoEvent {
   return eventBodyType === 'assistant_message' || eventBodyType === 'user_approval_request';
 }
 
-async function pollTaskEvents(taskId: string, token: string): Promise<string[]> {
-  debugLog(`Starting pollTaskEvents for task ${taskId}`);
+async function pollTaskEvents(
+  taskId: string,
+  token: string,
+  sinceSeq: number
+): Promise<{
+  messages: string[];
+  hasMore: boolean;
+  nextSeq: number;
+}> {
+  debugLog(`Starting pollTaskEvents for task ${taskId} with sinceSeq: ${sinceSeq}`);
   const startTime = Date.now();
-  const maxTimeout = 5 * 60 * 1000; // 5 minutes
+  const maxTimeout = 60 * 1000; // 60 seconds
 
   while (Date.now() - startTime < maxTimeout) {
     try {
@@ -102,27 +111,34 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
 
       const data = await response.json();
 
-      // Filter out all old messages first
-      const newMessages: NeoEvent[] =
+      // Get all relevant messages
+      const allMessages: NeoEvent[] =
         data.events?.filter((event: unknown): event is NeoEvent => {
-          if (!isRelevantMessage(event)) return false;
-          const eventTimestamp = event.eventBody!.timestamp!;
-          return !messageWatermark || eventTimestamp > messageWatermark;
+          return isRelevantMessage(event);
         }) || [];
 
-      debugLog(`Found ${newMessages.length} new messages with watermark: ${messageWatermark}`);
+      // Sort by timestamp to ensure consistent ordering
+      allMessages.sort((a, b) => {
+        const timeA = a.eventBody?.timestamp || '';
+        const timeB = b.eventBody?.timestamp || '';
+        return timeA.localeCompare(timeB);
+      });
 
-      // Find the final message or approval request (if any) in one pass
-      const finalMessage = newMessages.find(
-        (event) =>
-          event.eventBody?.is_final === true || event.eventBody?.type === 'user_approval_request'
+      // Update global cache with all messages
+      messageCache = allMessages;
+
+      // Find new messages since the given sequence number
+      const newMessages = allMessages.slice(sinceSeq);
+
+      debugLog(
+        `Total messages: ${allMessages.length}, since seq ${sinceSeq}: ${newMessages.length}`
       );
 
-      // If final found or approval request, return all new messages and update watermark
-      if (finalMessage) {
+      // If we have ANY new messages, return them immediately
+      if (newMessages.length > 0) {
         const messages: string[] = [];
 
-        // Process regular messages
+        // Process messages with content (assistant messages and other relevant content)
         newMessages.forEach((event) => {
           if (event.eventBody?.content) {
             messages.push(event.eventBody.content);
@@ -141,33 +157,48 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
 
           // Format approval message for user
           let approvalMessage = approvalRequest.eventBody.message;
-
           approvalMessage += '\n\nNeo is waiting for your approval.';
-
           messages.push(approvalMessage);
         }
 
+        // Find if there's a final message or approval request
+        const hasFinalMessage = newMessages.some(
+          (event) =>
+            event.eventBody?.is_final === true || event.eventBody?.type === 'user_approval_request'
+        );
+
+        // Next sequence is the total count of messages
+        const nextSeq = allMessages.length;
+
         // Log details for debugging
-        newMessages.forEach((event) => {
+        newMessages.forEach((event, index) => {
           const eventId = event.id;
           const eventTimestamp = event.eventBody?.timestamp;
           const isFinal = event.eventBody?.is_final;
           const isApproval = event.eventBody?.type === 'user_approval_request';
           const hasContent = !!event.eventBody?.content;
+          const isAssistantMsg = event.eventBody?.type === 'assistant_message';
+          const seqNum = sinceSeq + index;
           debugLog(
-            `Event ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, isApproval: ${isApproval}, hasContent: ${hasContent}`
+            `Event ${seqNum}: ${eventId}, timestamp: ${eventTimestamp}, isFinal: ${isFinal}, isApproval: ${isApproval}, hasContent: ${hasContent}, isAssistant: ${isAssistantMsg}`
           );
         });
 
-        // Update watermark to final message timestamp
-        messageWatermark = finalMessage.eventBody?.timestamp || null;
-        debugLog(`Updated watermark to: ${messageWatermark}`);
-        debugLog(`Returning ${messages.length} messages`);
-        return messages;
+        debugLog(`Next seq: ${nextSeq}, has final: ${hasFinalMessage}`);
+        debugLog(
+          `Returning ${messages.length} messages (${messages.length > 0 ? 'with content' : 'empty, but continuing polling'})`
+        );
+
+        if (messages.length > 0) {
+          return {
+            messages,
+            hasMore: !hasFinalMessage,
+            nextSeq
+          };
+        }
       }
 
-      // No final message yet, just continue polling
-      // Wait 1 second before polling again
+      // No new messages yet, wait before polling again
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (error) {
       throw new Error(
@@ -176,7 +207,15 @@ async function pollTaskEvents(taskId: string, token: string): Promise<string[]> 
     }
   }
 
-  throw new Error('Task polling timed out after 5 minutes');
+  // Timeout reached - return timeout message
+  debugLog('Task polling timed out after 60 seconds');
+  return {
+    messages: [
+      `⚠️ Polling timed out after 60 seconds. Neo may still be working on your request.\n\nCheck the task status at: https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
+    ],
+    hasMore: false,
+    nextSeq: messageCache.length
+  };
 }
 
 async function sendApproval(
@@ -218,59 +257,10 @@ async function sendApproval(
   }
 }
 
-async function sendFollowUpMessage(
-  taskId: string,
-  token: string,
-  message: string
-): Promise<string[]> {
-  try {
-    // Set watermark to current time before sending follow-up
-    // This ensures we only get messages that come after this point
-    const followUpTime = new Date().toISOString();
-    messageWatermark = followUpTime;
-    debugLog(`Set watermark to ${messageWatermark} before sending follow-up`);
-
-    // Send the follow-up message
-    const response = await fetch(
-      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          event: {
-            type: 'user_message',
-            content: message,
-            timestamp: followUpTime
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 409) {
-        throw new Error(`Task is currently busy processing. Please wait and try again.`);
-      }
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
-    }
-
-    debugLog(`Follow-up message sent, polling for responses newer than ${messageWatermark}`);
-
-    // Poll for new responses after sending the follow-up message
-    return await pollTaskEvents(taskId, token);
-  } catch (error) {
-    throw new Error(
-      `Error sending follow-up message: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
 export const neoTaskLauncherCommands = {
   'neo-task-launcher': {
-    description: 'Launch a Neo task when user asks Neo to do something',
+    description:
+      'Launch and monitor Neo tasks step by step. If the JSON result has `has_more=true`, call this tool again with `sinceSeq=next_seq`. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
     schema: {
       query: z.string().describe('The task query to send to Neo (what the user wants Neo to do)'),
       context: z
@@ -278,9 +268,18 @@ export const neoTaskLauncherCommands = {
         .optional()
         .describe(
           'Optional conversation context with details of work done so far. Include: 1) Summary of what the user has been working on, 2) For any files modified, provide git diff format showing the changes, 3) Textual explanation of what was changed and why. Example: "The user has been working on authentication. Files modified: src/auth.ts - Added token support: ```diff\\n- function login(user) {\\n+ function login(user, token) {\\n```\\nThis change adds token-based auth for better security."'
-        )
+        ),
+      sinceSeq: z
+        .number()
+        .optional()
+        .describe('The sequence number to continue from (message count)')
     },
     handler: async (args: NeoTaskLauncherArgs) => {
+      debugLog(`=== NEO TASK LAUNCHER CALLED ===`);
+      debugLog(`Args received: ${JSON.stringify(args)}`);
+      debugLog(`Has sinceSeq: ${!!args.sinceSeq}`);
+      debugLog(`Active task ID: ${activeTaskId}`);
+
       const token = process.env.PULUMI_ACCESS_TOKEN;
 
       if (!token) {
@@ -291,7 +290,8 @@ export const neoTaskLauncherCommands = {
               type: 'text' as const,
               text: 'PULUMI_ACCESS_TOKEN environment variable is not set. Please set it to use the Neo task launcher.'
             }
-          ]
+          ],
+          has_more: false
         };
       }
 
@@ -303,20 +303,46 @@ export const neoTaskLauncherCommands = {
               type: 'text' as const,
               text: 'The query parameter is required and cannot be empty. Please provide what you want Neo to do.'
             }
-          ]
+          ],
+          has_more: false
         };
       }
 
-      // If there's a pending approval and user wants to approve
-      if (pendingApprovalId && activeTaskId) {
-        debugLog(`User approved with: "${args.query}"`);
+      try {
+        // Check if this is a polling call (has sinceSeq) or new task
+        if (args.sinceSeq !== undefined && activeTaskId) {
+          debugLog(`Polling existing task ${activeTaskId} with sinceSeq ${args.sinceSeq}`);
 
-        try {
-          // Set watermark to current time before sending approval
-          const approvalTime = new Date().toISOString();
-          messageWatermark = approvalTime;
-          debugLog(`Set watermark to ${messageWatermark} before sending approval`);
+          // Poll for new messages
+          const result = await pollTaskEvents(activeTaskId, token, args.sinceSeq);
 
+          const content = result.messages.map((message) => ({
+            type: 'text' as const,
+            text: message
+          }));
+
+          const response = {
+            description: `Neo task poll - ${result.messages.length} new messages`,
+            content: content,
+            has_more: result.hasMore,
+            next_seq: result.nextSeq
+          };
+          debugLog(`Returning polling response: ${JSON.stringify(response)}`);
+          return response;
+        }
+
+        // Handle pending approval (user responding to approval)
+        if (
+          pendingApprovalId &&
+          activeTaskId &&
+          (args.query.toLowerCase().includes('yes') ||
+            args.query.toLowerCase().includes('proceed') ||
+            args.query.toLowerCase().includes('continue') ||
+            args.query.toLowerCase().includes('approve'))
+        ) {
+          debugLog(`User approved with: "${args.query}"`);
+
+          // Send approval
           await sendApproval(activeTaskId, token, pendingApprovalId, true);
 
           // Clear the approval ID since it's been processed
@@ -324,18 +350,18 @@ export const neoTaskLauncherCommands = {
           pendingApprovalId = null;
           debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
 
-          // Continue polling for Neo's response after approval
-          const messages = await pollTaskEvents(activeTaskId, token);
+          // Poll for Neo's response after approval (start from current message count)
+          const result = await pollTaskEvents(activeTaskId, token, messageCache.length);
 
           const content = [
             {
               type: 'text' as const,
-              text: `Approval sent to Neo task ${activeTaskId}\n\nNeo's response:`
+              text: `Approval sent to Neo task ${activeTaskId}`
             }
           ];
 
           // Add each message as a separate content block
-          messages.forEach((message) => {
+          result.messages.forEach((message) => {
             content.push({
               type: 'text' as const,
               text: message
@@ -344,44 +370,103 @@ export const neoTaskLauncherCommands = {
 
           return {
             description: 'Approval sent and Neo response received',
-            content: content
-          };
-        } catch (error) {
-          return {
-            description: 'Approval failed',
-            content: [
-              {
-                type: 'text' as const,
-                text: `Failed to send approval: ${error instanceof Error ? error.message : 'Unknown error'}`
-              }
-            ]
+            content: content,
+            has_more: result.hasMore,
+            next_seq: result.nextSeq
           };
         }
-      }
 
-      const requestContent =
-        args.context && args.context.trim() !== ''
-          ? `Conversation context:
+        const requestContent =
+          args.context && args.context.trim() !== ''
+            ? `Conversation context:
 
 ${args.context}
 
 User request:
 
 ${args.query}`
-          : args.query;
-
-      try {
-        let messages: string[];
-        let taskId: string;
-        let isFollowUp = false;
+            : args.query;
 
         if (activeTaskId) {
-          // This is a follow-up message to an existing task
-          taskId = activeTaskId;
-          isFollowUp = true;
-          messages = await sendFollowUpMessage(taskId, token, requestContent);
+          // Continue existing conversation as follow-up
+          debugLog(`Sending follow-up to existing task ${activeTaskId}: "${args.query}"`);
+
+          // Send follow-up message to existing task
+          const followUpTime = new Date().toISOString();
+          const followUpResponse = await fetch(
+            `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${activeTaskId}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `token ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                event: {
+                  type: 'user_message',
+                  content: requestContent,
+                  timestamp: followUpTime
+                }
+              })
+            }
+          );
+
+          if (!followUpResponse.ok) {
+            if (followUpResponse.status === 409) {
+              return {
+                description: 'Neo task busy',
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: 'Neo is currently busy processing. Please wait and try again.'
+                  }
+                ],
+                has_more: false
+              };
+            }
+            const errorText = await followUpResponse.text().catch(() => 'Unknown error');
+            return {
+              description: 'Follow-up failed',
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Failed to send follow-up message. Status: ${followUpResponse.status}, Error: ${errorText}`
+                }
+              ],
+              has_more: false
+            };
+          }
+
+          debugLog(
+            `Follow-up sent to task ${activeTaskId}, polling for response from sequence ${messageCache.length}`
+          );
+
+          // Poll for Neo's response (continue from current message count)
+          const pollResult = await pollTaskEvents(activeTaskId, token, messageCache.length);
+
+          const content = [
+            {
+              type: 'text' as const,
+              text: `Follow-up sent to Neo task ${activeTaskId}`
+            }
+          ];
+
+          // Add each message as a separate content block
+          pollResult.messages.forEach((message) => {
+            content.push({
+              type: 'text' as const,
+              text: message
+            });
+          });
+
+          return {
+            description: 'Neo follow-up sent successfully',
+            content: content,
+            has_more: pollResult.hasMore,
+            next_seq: pollResult.nextSeq
+          };
         } else {
-          // Create a new task
+          // Create a new task (first conversation)
           const response = await fetch('https://api.pulumi.com/api/preview/agents/pulumi/tasks', {
             method: 'POST',
             headers: {
@@ -402,50 +487,57 @@ ${args.query}`
                   type: 'text' as const,
                   text: `Failed to launch Neo task. Status: ${response.status}, Error: ${errorText}`
                 }
-              ]
+              ],
+              has_more: false
             };
           }
 
           const result = await response.json();
-          taskId = result.taskId;
-          activeTaskId = taskId; // Store for future follow-ups
+          const taskId = result.taskId;
+          activeTaskId = taskId; // Store for future polling
 
-          // Poll for task completion
-          messages = await pollTaskEvents(taskId, token);
-        }
+          debugLog(`Created new task ${taskId}`);
 
-        const content = [
-          {
-            type: 'text' as const,
-            text: isFollowUp
-              ? `Follow-up message sent to Neo task ${taskId}\n\nNeo's response:`
-              : `Neo task launched at https://app.pulumi.com/pulumi/neo/tasks/${taskId}\n\nNeo's response:`
-          }
-        ];
+          // Reset message cache for new task
+          messageCache = [];
 
-        // Add each message as a separate content block
-        messages.forEach((message) => {
-          content.push({
-            type: 'text' as const,
-            text: message
+          // Poll for initial responses (start from sequence 0)
+          const pollResult = await pollTaskEvents(taskId, token, 0);
+
+          const content = [
+            {
+              type: 'text' as const,
+              text: `Neo task launched at https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
+            }
+          ];
+
+          // Add each message as a separate content block
+          pollResult.messages.forEach((message) => {
+            content.push({
+              type: 'text' as const,
+              text: message
+            });
           });
-        });
 
-        return {
-          description: isFollowUp
-            ? 'Neo follow-up completed successfully'
-            : 'Neo task completed successfully',
-          content: content
-        };
+          const taskResponse = {
+            description: 'Neo task launched successfully',
+            content: content,
+            has_more: pollResult.hasMore,
+            next_seq: pollResult.nextSeq
+          };
+          debugLog(`Returning initial response: ${JSON.stringify(taskResponse)}`);
+          return taskResponse;
+        }
       } catch (error) {
         return {
           description: 'Network error',
           content: [
             {
               type: 'text' as const,
-              text: `Failed to ${activeTaskId ? 'send follow-up to' : 'launch'} Neo task due to network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+              text: `Failed to process Neo task: ${error instanceof Error ? error.message : 'Unknown error'}`
             }
-          ]
+          ],
+          has_more: false
         };
       }
     }
@@ -455,7 +547,6 @@ ${args.query}`
     schema: {},
     handler: async () => {
       activeTaskId = null;
-      messageWatermark = null; // Clear watermark when resetting
       pendingApprovalId = null; // Clear pending approval when resetting
       return {
         description: 'Neo conversation reset',
@@ -464,7 +555,8 @@ ${args.query}`
             type: 'text' as const,
             text: 'Neo conversation has been reset. The next "Ask Neo" request will start a new task.'
           }
-        ]
+        ],
+        has_more: false
       };
     }
   }
