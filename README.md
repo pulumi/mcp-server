@@ -22,6 +22,7 @@ The Pulumi MCP Server enables advanced Infrastructure as Code development capabi
 | `pulumi-cli-stack-output` | Retrieve deployment outputs like URLs and resource IDs from your infrastructure stacks |
 | `pulumi-cli-refresh` | Sync your Pulumi state with actual cloud resources to detect drift and manual changes |
 | `pulumi-resource-search` | Discover, count, and analyze your deployed infrastructure across all cloud providers. |
+| `neo-task-launcher` | Interact with Pulumi Neo for advanced infrastructure tasks |
 
 ### Available Prompts
 
