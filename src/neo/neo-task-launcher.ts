@@ -257,6 +257,55 @@ async function sendApproval(
   }
 }
 
+async function sendFollowUpMessage(
+  taskId: string,
+  token: string,
+  message: string
+): Promise<{
+  messages: string[];
+  hasMore: boolean;
+  nextSeq: number;
+}> {
+  try {
+    // Send follow-up message to existing task
+    const followUpTime = new Date().toISOString();
+    const response = await fetch(
+      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event: {
+            type: 'user_message',
+            content: message,
+            timestamp: followUpTime
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('Neo is currently busy processing. Please wait and try again.');
+      }
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
+    }
+
+    debugLog(`Follow-up sent to task ${taskId}, polling for response from sequence ${messageCache.length}`);
+
+    // Poll for Neo's response (continue from current message count)
+    return await pollTaskEvents(taskId, token, messageCache.length);
+  } catch (error) {
+    throw new Error(
+      `Error sending follow-up message: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
 export const neoTaskLauncherCommands = {
   'neo-task-launcher': {
     description:
@@ -351,7 +400,7 @@ export const neoTaskLauncherCommands = {
           debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
 
           // Poll for Neo's response after approval (start from current message count)
-          const result = await pollTaskEvents(activeTaskId, token, messageCache.length);
+          const pollResult = await pollTaskEvents(activeTaskId, token, messageCache.length);
 
           const content = [
             {
@@ -361,7 +410,7 @@ export const neoTaskLauncherCommands = {
           ];
 
           // Add each message as a separate content block
-          result.messages.forEach((message) => {
+          pollResult.messages.forEach((message) => {
             content.push({
               type: 'text' as const,
               text: message
@@ -371,8 +420,8 @@ export const neoTaskLauncherCommands = {
           return {
             description: 'Approval sent and Neo response received',
             content: content,
-            has_more: result.hasMore,
-            next_seq: result.nextSeq
+            has_more: pollResult.hasMore,
+            next_seq: pollResult.nextSeq
           };
         }
 
@@ -391,58 +440,7 @@ ${args.query}`
           // Continue existing conversation as follow-up
           debugLog(`Sending follow-up to existing task ${activeTaskId}: "${args.query}"`);
 
-          // Send follow-up message to existing task
-          const followUpTime = new Date().toISOString();
-          const followUpResponse = await fetch(
-            `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${activeTaskId}`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `token ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                event: {
-                  type: 'user_message',
-                  content: requestContent,
-                  timestamp: followUpTime
-                }
-              })
-            }
-          );
-
-          if (!followUpResponse.ok) {
-            if (followUpResponse.status === 409) {
-              return {
-                description: 'Neo task busy',
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: 'Neo is currently busy processing. Please wait and try again.'
-                  }
-                ],
-                has_more: false
-              };
-            }
-            const errorText = await followUpResponse.text().catch(() => 'Unknown error');
-            return {
-              description: 'Follow-up failed',
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `Failed to send follow-up message. Status: ${followUpResponse.status}, Error: ${errorText}`
-                }
-              ],
-              has_more: false
-            };
-          }
-
-          debugLog(
-            `Follow-up sent to task ${activeTaskId}, polling for response from sequence ${messageCache.length}`
-          );
-
-          // Poll for Neo's response (continue from current message count)
-          const pollResult = await pollTaskEvents(activeTaskId, token, messageCache.length);
+          const pollResult = await sendFollowUpMessage(activeTaskId, token, requestContent);
 
           const content = [
             {
