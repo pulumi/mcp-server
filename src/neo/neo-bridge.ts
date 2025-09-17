@@ -294,6 +294,26 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
   }
 }
 
+async function pollAndFormatResults(activeTaskId: string, token: string, firstMessage: string) {
+  debugLog(`Polling task ${activeTaskId}`);
+
+  // Poll for new messages using client-provided sinceSeq
+  const result = await pollTaskEvents(activeTaskId, token, lastShownSeq);
+
+  const content = result.messages.map((message) => ({
+    type: 'text' as const,
+    text: message
+  }));
+
+  const response = {
+    description: `Neo task poll - ${result.messages.length} new messages`,
+    content: [{ type: 'text' as const, text: firstMessage }, ...content],
+    has_more: result.hasMore
+  };
+  debugLog(`Returning polling response: ${JSON.stringify(response)}`);
+  return response;
+}
+
 export const neoBridgeCommands = {
   'neo-bridge': {
     description:
@@ -336,23 +356,7 @@ export const neoBridgeCommands = {
       try {
         // Check if this is a polling call or new task
         if (activeTaskId && (!args.query || args.query.trim() === '')) {
-          debugLog(`Polling existing task ${activeTaskId}`);
-
-          // Poll for new messages using client-provided sinceSeq
-          const result = await pollTaskEvents(activeTaskId, token, lastShownSeq);
-
-          const content = result.messages.map((message) => ({
-            type: 'text' as const,
-            text: message
-          }));
-
-          const response = {
-            description: `Neo task poll - ${result.messages.length} new messages`,
-            content: content,
-            has_more: result.hasMore
-          };
-          debugLog(`Returning polling response: ${JSON.stringify(response)}`);
-          return response;
+          return pollAndFormatResults(activeTaskId, token, `Polling task {activeTaskId}`);
         }
 
         const requestContent =
@@ -401,18 +405,11 @@ ${args.query}`
           // Reset watermark for new task
           lastShownSeq = 0;
 
-          const taskResponse = {
-            description: 'Neo task launched successfully',
-            content: [
-              {
-                type: 'text' as const,
-                text: `Check the task status at: https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
-              }
-            ],
-            has_more: true
-          };
-          debugLog(`Returning initial response: ${JSON.stringify(taskResponse)}`);
-          return taskResponse;
+          return pollAndFormatResults(
+            activeTaskId!,
+            token,
+            `Check the task status at: https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+          );
         }
 
         // Handle pending approval (user responding to approval)
@@ -427,16 +424,11 @@ ${args.query}`
           pendingApprovalId = null;
           debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
 
-          return {
-            description: 'Approval sent to Neo',
-            content: [
-              {
-                type: 'text' as const,
-                text: `Approval sent to Neo task ${activeTaskId}.`
-              }
-            ],
-            has_more: true
-          };
+          return pollAndFormatResults(
+            activeTaskId,
+            token,
+            `Approval sent to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+          );
         }
 
         // Continue existing conversation as follow-up
@@ -444,16 +436,11 @@ ${args.query}`
 
         await sendFollowUpMessage(activeTaskId, token, requestContent);
 
-        return {
-          description: 'Neo follow-up sent successfully',
-          content: [
-            {
-              type: 'text' as const,
-              text: `Sent a follow-up message to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
-            }
-          ],
-          has_more: true
-        };
+        return pollAndFormatResults(
+          activeTaskId,
+          token,
+          `Follow-up sent to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+        );
       } catch (error) {
         return {
           description: 'Network error',
