@@ -294,8 +294,8 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
   }
 }
 
-export const neoTaskLauncherCommands = {
-  'neo-task-launcher': {
+export const neoBridgeCommands = {
+  'neo-bridge': {
     description:
       'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. ' +
       'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
