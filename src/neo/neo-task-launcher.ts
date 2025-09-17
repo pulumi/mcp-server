@@ -32,8 +32,8 @@ interface NeoEvent {
 let activeTaskId: string | null = null;
 // Pending approval request ID
 let pendingApprovalId: string | null = null;
-// Global message cache to track sequence numbers
-let messageCache: NeoEvent[] = [];
+// Global watermark tracking the last message shown to user
+let lastShownSeq: number = 0;
 
 function debugLog(message: string) {
   const logFile = process.env.MCP_LOG_FILE;
@@ -90,7 +90,7 @@ async function pollTaskEvents(
 }> {
   debugLog(`Starting pollTaskEvents for task ${taskId} with sinceSeq: ${sinceSeq}`);
   const startTime = Date.now();
-  const maxTimeout = 60 * 1000; // 60 seconds
+  const maxTimeout = 5 * 60 * 1000; // 5 minutes
 
   while (Date.now() - startTime < maxTimeout) {
     try {
@@ -123,9 +123,6 @@ async function pollTaskEvents(
         const timeB = b.eventBody?.timestamp || '';
         return timeA.localeCompare(timeB);
       });
-
-      // Update global cache with all messages
-      messageCache = allMessages;
 
       // Find new messages since the given sequence number
       const newMessages = allMessages.slice(sinceSeq);
@@ -190,6 +187,8 @@ async function pollTaskEvents(
         );
 
         if (messages.length > 0) {
+          // Update global watermark when we return messages
+          lastShownSeq = nextSeq;
           return {
             messages,
             hasMore: !hasFinalMessage,
@@ -208,13 +207,13 @@ async function pollTaskEvents(
   }
 
   // Timeout reached - return timeout message
-  debugLog('Task polling timed out after 60 seconds');
+  debugLog('Task polling timed out after 5 minutes');
   return {
     messages: [
-      `⚠️ Polling timed out after 60 seconds. Neo may still be working on your request.\n\nCheck the task status at: https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
+      `⚠️ Polling timed out after 5 minutes. Neo may still be working on your request.\n\nCheck the task status at: https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
     ],
     hasMore: false,
-    nextSeq: messageCache.length
+    nextSeq: 0 // We don't have allMessages here, but timeout case is rare
   };
 }
 
@@ -269,6 +268,7 @@ async function sendFollowUpMessage(
   try {
     // Send follow-up message to existing task
     const followUpTime = new Date().toISOString();
+    debugLog(`Sending follow-up message "${message}" to task ${taskId} at ${followUpTime}`);
     const response = await fetch(
       `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
       {
@@ -288,6 +288,7 @@ async function sendFollowUpMessage(
     );
 
     if (!response.ok) {
+      debugLog(`Follow-up message API response not OK: ${response.status}`);
       if (response.status === 409) {
         throw new Error('Neo is currently busy processing. Please wait and try again.');
       }
@@ -295,12 +296,10 @@ async function sendFollowUpMessage(
       throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
     }
 
-    debugLog(
-      `Follow-up sent to task ${taskId}, polling for response from sequence ${messageCache.length}`
-    );
+    debugLog(`Follow-up sent to task ${taskId}, polling for response from sequence ${lastShownSeq}`);
 
-    // Poll for Neo's response (continue from current message count)
-    return await pollTaskEvents(taskId, token, messageCache.length);
+    // Poll for Neo's response (continue from last shown sequence)
+    return await pollTaskEvents(taskId, token, lastShownSeq);
   } catch (error) {
     throw new Error(
       `Error sending follow-up message: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -364,7 +363,7 @@ export const neoTaskLauncherCommands = {
         if (args.sinceSeq !== undefined && activeTaskId) {
           debugLog(`Polling existing task ${activeTaskId} with sinceSeq ${args.sinceSeq}`);
 
-          // Poll for new messages
+          // Poll for new messages using client-provided sinceSeq
           const result = await pollTaskEvents(activeTaskId, token, args.sinceSeq);
 
           const content = result.messages.map((message) => ({
@@ -401,8 +400,8 @@ export const neoTaskLauncherCommands = {
           pendingApprovalId = null;
           debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
 
-          // Poll for Neo's response after approval (start from current message count)
-          const pollResult = await pollTaskEvents(activeTaskId, token, messageCache.length);
+          // Poll for Neo's response after approval (continue from last shown sequence)
+          const pollResult = await pollTaskEvents(activeTaskId, token, lastShownSeq);
 
           const content = [
             {
@@ -498,8 +497,8 @@ ${args.query}`
 
           debugLog(`Created new task ${taskId}`);
 
-          // Reset message cache for new task
-          messageCache = [];
+          // Reset watermark for new task
+          lastShownSeq = 0;
 
           // Poll for initial responses (start from sequence 0)
           const pollResult = await pollTaskEvents(taskId, token, 0);
@@ -548,6 +547,7 @@ ${args.query}`
     handler: async () => {
       activeTaskId = null;
       pendingApprovalId = null; // Clear pending approval when resetting
+      lastShownSeq = 0; // Reset watermark
       return {
         description: 'Neo conversation reset',
         content: [
