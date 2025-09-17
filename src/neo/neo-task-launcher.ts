@@ -4,7 +4,6 @@ import * as fs from 'node:fs';
 type NeoTaskLauncherArgs = {
   query: string;
   context?: string;
-  sinceSeq?: number;
 };
 
 interface NeoEvent {
@@ -86,7 +85,6 @@ async function pollTaskEvents(
 ): Promise<{
   messages: string[];
   hasMore: boolean;
-  nextSeq: number;
 }> {
   debugLog(`Starting pollTaskEvents for task ${taskId} with sinceSeq: ${sinceSeq}`);
   const startTime = Date.now();
@@ -191,8 +189,7 @@ async function pollTaskEvents(
           lastShownSeq = nextSeq;
           return {
             messages,
-            hasMore: !hasFinalMessage,
-            nextSeq
+            hasMore: !hasFinalMessage
           };
         }
       }
@@ -212,8 +209,7 @@ async function pollTaskEvents(
     messages: [
       `⚠️ Polling timed out after 5 minutes. Neo may still be working on your request.\n\nCheck the task status at: https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
     ],
-    hasMore: false,
-    nextSeq: 0 // We don't have allMessages here, but timeout case is rare
+    hasMore: false
   };
 }
 
@@ -256,15 +252,7 @@ async function sendApproval(
   }
 }
 
-async function sendFollowUpMessage(
-  taskId: string,
-  token: string,
-  message: string
-): Promise<{
-  messages: string[];
-  hasMore: boolean;
-  nextSeq: number;
-}> {
+async function sendFollowUpMessage(taskId: string, token: string, message: string): Promise<void> {
   try {
     // Send follow-up message to existing task
     const followUpTime = new Date().toISOString();
@@ -296,10 +284,9 @@ async function sendFollowUpMessage(
       throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
     }
 
-    debugLog(`Follow-up sent to task ${taskId}, polling for response from sequence ${lastShownSeq}`);
-
-    // Poll for Neo's response (continue from last shown sequence)
-    return await pollTaskEvents(taskId, token, lastShownSeq);
+    debugLog(
+      `Follow-up sent to task ${taskId}, polling for response from sequence ${lastShownSeq}`
+    );
   } catch (error) {
     throw new Error(
       `Error sending follow-up message: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -310,24 +297,25 @@ async function sendFollowUpMessage(
 export const neoTaskLauncherCommands = {
   'neo-task-launcher': {
     description:
-      'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. If the JSON result has `has_more=true`, call this tool again with `sinceSeq=next_seq`. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
+      'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. ' +
+      'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
     schema: {
-      query: z.string().describe('The task query to send to Neo (what the user wants Neo to do)'),
+      query: z
+        .string()
+        .optional()
+        .describe(
+          'The task query to send to Neo (what the user wants Neo to do). Leave it empty when the tool is called again to read more data.'
+        ),
       context: z
         .string()
         .optional()
         .describe(
           'Optional conversation context with details of work done so far. Include: 1) Summary of what the user has been working on, 2) For any files modified, provide git diff format showing the changes, 3) Textual explanation of what was changed and why. Example: "The user has been working on authentication. Files modified: src/auth.ts - Added token support: ```diff\\n- function login(user) {\\n+ function login(user, token) {\\n```\\nThis change adds token-based auth for better security."'
-        ),
-      sinceSeq: z
-        .number()
-        .optional()
-        .describe('The sequence number to continue from (message count)')
+        )
     },
     handler: async (args: NeoTaskLauncherArgs) => {
       debugLog(`=== NEO TASK LAUNCHER CALLED ===`);
       debugLog(`Args received: ${JSON.stringify(args)}`);
-      debugLog(`Has sinceSeq: ${!!args.sinceSeq}`);
       debugLog(`Active task ID: ${activeTaskId}`);
 
       const token = process.env.PULUMI_ACCESS_TOKEN;
@@ -345,26 +333,13 @@ export const neoTaskLauncherCommands = {
         };
       }
 
-      if (!args.query || args.query.trim() === '') {
-        return {
-          description: 'Missing query parameter',
-          content: [
-            {
-              type: 'text' as const,
-              text: 'The query parameter is required and cannot be empty. Please provide what you want Neo to do.'
-            }
-          ],
-          has_more: false
-        };
-      }
-
       try {
-        // Check if this is a polling call (has sinceSeq) or new task
-        if (args.sinceSeq !== undefined && activeTaskId) {
-          debugLog(`Polling existing task ${activeTaskId} with sinceSeq ${args.sinceSeq}`);
+        // Check if this is a polling call or new task
+        if (activeTaskId && (!args.query || args.query.trim() === '')) {
+          debugLog(`Polling existing task ${activeTaskId}`);
 
           // Poll for new messages using client-provided sinceSeq
-          const result = await pollTaskEvents(activeTaskId, token, args.sinceSeq);
+          const result = await pollTaskEvents(activeTaskId, token, lastShownSeq);
 
           const content = result.messages.map((message) => ({
             type: 'text' as const,
@@ -374,56 +349,10 @@ export const neoTaskLauncherCommands = {
           const response = {
             description: `Neo task poll - ${result.messages.length} new messages`,
             content: content,
-            has_more: result.hasMore,
-            next_seq: result.nextSeq
+            has_more: result.hasMore
           };
           debugLog(`Returning polling response: ${JSON.stringify(response)}`);
           return response;
-        }
-
-        // Handle pending approval (user responding to approval)
-        if (
-          pendingApprovalId &&
-          activeTaskId &&
-          (args.query.toLowerCase().includes('yes') ||
-            args.query.toLowerCase().includes('proceed') ||
-            args.query.toLowerCase().includes('continue') ||
-            args.query.toLowerCase().includes('approve'))
-        ) {
-          debugLog(`User approved with: "${args.query}"`);
-
-          // Send approval
-          await sendApproval(activeTaskId, token, pendingApprovalId, true);
-
-          // Clear the approval ID since it's been processed
-          const approvedId = pendingApprovalId;
-          pendingApprovalId = null;
-          debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
-
-          // Poll for Neo's response after approval (continue from last shown sequence)
-          const pollResult = await pollTaskEvents(activeTaskId, token, lastShownSeq);
-
-          const content = [
-            {
-              type: 'text' as const,
-              text: `Approval sent to Neo task ${activeTaskId}`
-            }
-          ];
-
-          // Add each message as a separate content block
-          pollResult.messages.forEach((message) => {
-            content.push({
-              type: 'text' as const,
-              text: message
-            });
-          });
-
-          return {
-            description: 'Approval sent and Neo response received',
-            content: content,
-            has_more: pollResult.hasMore,
-            next_seq: pollResult.nextSeq
-          };
         }
 
         const requestContent =
@@ -437,34 +366,7 @@ User request:
 ${args.query}`
             : args.query;
 
-        if (activeTaskId) {
-          // Continue existing conversation as follow-up
-          debugLog(`Sending follow-up to existing task ${activeTaskId}: "${args.query}"`);
-
-          const pollResult = await sendFollowUpMessage(activeTaskId, token, requestContent);
-
-          const content = [
-            {
-              type: 'text' as const,
-              text: `Follow-up sent to Neo task ${activeTaskId}`
-            }
-          ];
-
-          // Add each message as a separate content block
-          pollResult.messages.forEach((message) => {
-            content.push({
-              type: 'text' as const,
-              text: message
-            });
-          });
-
-          return {
-            description: 'Neo follow-up sent successfully',
-            content: content,
-            has_more: pollResult.hasMore,
-            next_seq: pollResult.nextSeq
-          };
-        } else {
+        if (!activeTaskId) {
           // Create a new task (first conversation)
           const response = await fetch('https://api.pulumi.com/api/preview/agents/pulumi/tasks', {
             method: 'POST',
@@ -492,41 +394,66 @@ ${args.query}`
           }
 
           const result = await response.json();
-          const taskId = result.taskId;
-          activeTaskId = taskId; // Store for future polling
+          activeTaskId = result.taskId; // Store for future polling
 
-          debugLog(`Created new task ${taskId}`);
+          debugLog(`Created new task ${activeTaskId}`);
 
           // Reset watermark for new task
           lastShownSeq = 0;
 
-          // Poll for initial responses (start from sequence 0)
-          const pollResult = await pollTaskEvents(taskId, token, 0);
-
-          const content = [
-            {
-              type: 'text' as const,
-              text: `Neo task launched at https://app.pulumi.com/pulumi/neo/tasks/${taskId}`
-            }
-          ];
-
-          // Add each message as a separate content block
-          pollResult.messages.forEach((message) => {
-            content.push({
-              type: 'text' as const,
-              text: message
-            });
-          });
-
           const taskResponse = {
             description: 'Neo task launched successfully',
-            content: content,
-            has_more: pollResult.hasMore,
-            next_seq: pollResult.nextSeq
+            content: [
+              {
+                type: 'text' as const,
+                text: `Check the task status at: https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+              }
+            ],
+            has_more: true
           };
           debugLog(`Returning initial response: ${JSON.stringify(taskResponse)}`);
           return taskResponse;
         }
+
+        // Handle pending approval (user responding to approval)
+        if (pendingApprovalId) {
+          debugLog(`User approved with: "${args.query}"`);
+
+          // Send approval
+          await sendApproval(activeTaskId, token, pendingApprovalId, true);
+
+          // Clear the approval ID since it's been processed
+          const approvedId = pendingApprovalId;
+          pendingApprovalId = null;
+          debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
+
+          return {
+            description: 'Approval sent to Neo',
+            content: [
+              {
+                type: 'text' as const,
+                text: `Approval sent to Neo task ${activeTaskId}.`
+              }
+            ],
+            has_more: true
+          };
+        }
+
+        // Continue existing conversation as follow-up
+        debugLog(`Sending follow-up to existing task ${activeTaskId}: "${args.query}"`);
+
+        await sendFollowUpMessage(activeTaskId, token, requestContent);
+
+        return {
+          description: 'Neo follow-up sent successfully',
+          content: [
+            {
+              type: 'text' as const,
+              text: `Sent a follow-up message to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+            }
+          ],
+          has_more: true
+        };
       } catch (error) {
         return {
           description: 'Network error',
