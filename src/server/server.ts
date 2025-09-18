@@ -9,7 +9,7 @@ import { logger } from '../logging/logging.js';
 import { deployCommands, deployPrompts } from '../deploy/deploy.js';
 import { convertPrompts } from '../pulumi/convert.js';
 import { resourceSearchCommands } from '../insights/resource-search.js';
-import { neoTaskLauncherCommands } from '../neo/neo-task-launcher.js';
+import { neoBridgeCommands } from '../neo/neo-bridge.js';
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -104,7 +104,7 @@ export class Server extends McpServer {
     });
 
     // Register neo task launcher commands
-    Object.entries(neoTaskLauncherCommands).forEach(([commandName, command]) => {
+    Object.entries(neoBridgeCommands).forEach(([commandName, command]) => {
       const toolName = commandName;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.tool(toolName, command.description, command.schema, async (args: any) => {
