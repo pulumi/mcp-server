@@ -470,7 +470,7 @@ ${args.query}`
 
         if (!args.taskId) {
           // Create a new task (first conversation)
-          const response = await fetch('${PULUMI_API_URL}/api/preview/agents/pulumi/tasks', {
+          const response = await fetch(`${PULUMI_API_URL}/api/preview/agents/pulumi/tasks`, {
             method: 'POST',
             headers: {
               Authorization: `token ${token}`,
