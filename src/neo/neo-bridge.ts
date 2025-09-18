@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 // Configurable API endpoint
 const PULUMI_API_URL = process.env.PULUMI_API_URL || 'https://api.pulumi.com';
 
-type NeoTaskLauncherArgs = {
+type NeoBridgeArgs = {
   query: string;
   context?: string;
   taskId?: string;
@@ -373,7 +373,7 @@ async function pollAndFormatResults(activeTaskId: string, token: string, firstMe
   return response;
 }
 
-async function handleNewTask(args: NeoTaskLauncherArgs, token: string): Promise<NeoTaskResponse> {
+async function handleNewTask(args: NeoBridgeArgs, token: string): Promise<NeoTaskResponse> {
   const requestContent =
     args.context && args.context.trim() !== ''
       ? `Conversation context:
@@ -423,10 +423,7 @@ ${args.query}`
   );
 }
 
-async function handleExistingTask(
-  args: NeoTaskLauncherArgs,
-  token: string
-): Promise<NeoTaskResponse> {
+async function handleExistingTask(args: NeoBridgeArgs, token: string): Promise<NeoTaskResponse> {
   // First check for pending approval if we have a taskId
   const taskState = getTaskState(args.taskId!);
   if (taskState.pendingApprovalId) {
@@ -535,7 +532,7 @@ export const neoBridgeCommands = {
           'ONLY set this when the user explicitly says "yes", "approve", "go ahead", "proceed" (approval=true) or "no", "reject", "cancel", "stop" (approval=false) in response to Neo waiting for approval. Do NOT set this parameter for normal follow-ups or when continuing conversations. This parameter should ONLY be used as a direct reaction to user approval/rejection language when Neo is waiting for confirmation.'
         )
     },
-    handler: async (args: NeoTaskLauncherArgs) => {
+    handler: async (args: NeoBridgeArgs) => {
       debugLog(`=== NEO TASK LAUNCHER CALLED ===`);
       debugLog(`Args received: ${JSON.stringify(args)}`);
 
