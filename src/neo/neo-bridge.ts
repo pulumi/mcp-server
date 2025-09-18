@@ -11,6 +11,13 @@ type NeoTaskLauncherArgs = {
   approval?: boolean;
 };
 
+type NeoTaskResponse = {
+  description: string;
+  content: Array<{ type: 'text'; text: string }>;
+  has_more: boolean;
+  taskId?: string;
+};
+
 // Task state type
 interface TaskState {
   lastShownSeq: number;
@@ -366,6 +373,132 @@ async function pollAndFormatResults(activeTaskId: string, token: string, firstMe
   return response;
 }
 
+async function handleNewTask(args: NeoTaskLauncherArgs, token: string): Promise<NeoTaskResponse> {
+  const requestContent =
+    args.context && args.context.trim() !== ''
+      ? `Conversation context:
+
+${args.context}
+
+User request:
+
+${args.query}`
+      : args.query;
+
+  // Create a new task (first conversation)
+  const response = await fetch(`${PULUMI_API_URL}/api/preview/agents/pulumi/tasks`, {
+    method: 'POST',
+    headers: {
+      Authorization: `token ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      content: requestContent
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return {
+      description: 'API request failed',
+      content: [
+        {
+          type: 'text' as const,
+          text: `Failed to launch Neo task. Status: ${response.status}, Error: ${errorText}`
+        }
+      ],
+      has_more: false
+    };
+  }
+
+  const result = await response.json();
+  const newTaskId = result.taskId;
+
+  debugLog(`Created new task ${newTaskId}`);
+
+  return pollAndFormatResults(
+    newTaskId,
+    token,
+    `Neo task launched at: https://app.pulumi.com/pulumi/neo/tasks/${newTaskId}`
+  );
+}
+
+async function handleExistingTask(
+  args: NeoTaskLauncherArgs,
+  token: string
+): Promise<NeoTaskResponse> {
+  // First check for pending approval if we have a taskId
+  const taskState = getTaskState(args.taskId!);
+  if (taskState.pendingApprovalId) {
+    // Task is waiting for approval
+    if (args.approval === undefined) {
+      // User didn't provide approval parameter - fail with clear error
+      return {
+        description: 'Approval required',
+        content: [
+          {
+            type: 'text' as const,
+            text: "I don't understand if you approved or not. Neo is waiting for approval. Please call this tool again with approval=true to approve or approval=false to reject."
+          }
+        ],
+        has_more: false
+      };
+    } else {
+      // User provided explicit approval - process it
+      debugLog(`User ${args.approval ? 'approved' : 'rejected'} with: "${args.query}"`);
+
+      await sendApproval(
+        args.taskId!,
+        token,
+        taskState.pendingApprovalId,
+        args.approval,
+        args.query || ''
+      );
+
+      // Clear the approval ID since it's been processed
+      const approvedId = taskState.pendingApprovalId;
+      taskState.pendingApprovalId = null;
+      debugLog(
+        `Cleared pending approval ID ${approvedId} after user ${args.approval ? 'approval' : 'rejection'}`
+      );
+
+      return pollAndFormatResults(
+        args.taskId!,
+        token,
+        `Approval sent: ${args.approval ? 'APPROVED' : 'REJECTED'}`
+      );
+    }
+  }
+
+  // Check if this is a polling call (taskId provided, no query)
+  if (!args.query || args.query.trim() === '') {
+    debugLog(`Polling existing task ${args.taskId}`);
+    return pollAndFormatResults(args.taskId!, token, `Polling task ${args.taskId}`);
+  }
+
+  // Continue existing conversation as follow-up
+  debugLog(`Sending follow-up to existing task ${args.taskId}: "${args.query}"`);
+
+  const requestContent =
+    args.context && args.context.trim() !== ''
+      ? `Conversation context:
+
+${args.context}
+
+User request:
+
+${args.query}`
+      : args.query;
+
+  await sendFollowUpMessage(args.taskId!, token, requestContent);
+
+  return pollAndFormatResults(
+    args.taskId!,
+    token,
+    `Sent follow-up message to task https://app.pulumi.com/pulumi/neo/tasks/${args.taskId}`
+  );
+}
+
 export const neoBridgeCommands = {
   'neo-bridge': {
     description:
@@ -419,121 +552,11 @@ export const neoBridgeCommands = {
       }
 
       try {
-        // First check for pending approval if we have a taskId
-        if (args.taskId) {
-          const taskState = getTaskState(args.taskId);
-          if (taskState.pendingApprovalId) {
-            // Task is waiting for approval
-            if (args.approval === undefined) {
-              // User didn't provide approval parameter - fail with clear error
-              return {
-                description: 'Approval required',
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: "I don't understand if you approved or not. Neo is waiting for approval. Please call this tool again with approval=true to approve or approval=false to reject."
-                  }
-                ],
-                has_more: false
-              };
-            } else {
-              // User provided explicit approval - process it
-              debugLog(`User ${args.approval ? 'approved' : 'rejected'} with: "${args.query}"`);
-
-              await sendApproval(
-                args.taskId,
-                token,
-                taskState.pendingApprovalId,
-                args.approval,
-                args.query || ''
-              );
-
-              // Clear the approval ID since it's been processed
-              const approvedId = taskState.pendingApprovalId;
-              taskState.pendingApprovalId = null;
-              debugLog(
-                `Cleared pending approval ID ${approvedId} after user ${args.approval ? 'approval' : 'rejection'}`
-              );
-
-              return pollAndFormatResults(
-                args.taskId,
-                token,
-                `Approval sent: ${args.approval ? 'APPROVED' : 'REJECTED'}`
-              );
-            }
-          }
-        }
-
-        // Check if this is a polling call or new task
-        if (args.taskId && (!args.query || args.query.trim() === '')) {
-          return pollAndFormatResults(args.taskId, token, `Polling task ${args.taskId}`);
-        }
-
-        const requestContent =
-          args.context && args.context.trim() !== ''
-            ? `Conversation context:
-
-${args.context}
-
-User request:
-
-${args.query}`
-            : args.query;
-
         if (!args.taskId) {
-          // Create a new task (first conversation)
-          const response = await fetch(`${PULUMI_API_URL}/api/preview/agents/pulumi/tasks`, {
-            method: 'POST',
-            headers: {
-              Authorization: `token ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              content: requestContent
-            })
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            return {
-              description: 'API request failed',
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `Failed to launch Neo task. Status: ${response.status}, Error: ${errorText}`
-                }
-              ],
-              has_more: false
-            };
-          }
-
-          const result = await response.json();
-          const newTaskId = result.taskId;
-
-          debugLog(`Created new task ${newTaskId}`);
-
-          return pollAndFormatResults(
-            newTaskId,
-            token,
-            `Neo task launched at: https://app.pulumi.com/pulumi/neo/tasks/${newTaskId}`
-          );
+          return await handleNewTask(args, token);
+        } else {
+          return await handleExistingTask(args, token);
         }
-
-        // Continue existing conversation as follow-up
-        if (args.taskId) {
-          debugLog(`Sending follow-up to existing task ${args.taskId}: "${args.query}"`);
-
-          await sendFollowUpMessage(args.taskId, token, requestContent);
-
-          return pollAndFormatResults(
-            args.taskId,
-            token,
-            `Sent follow-up message to task https://app.pulumi.com/pulumi/neo/tasks/${args.taskId}`
-          );
-        }
-
-        // Should not reach here - either taskId should be provided or new task should be created
-        throw new Error('Invalid state: no taskId provided and not creating new task');
       } catch (error) {
         return {
           description: 'Network error',
