@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { neoBridgeCommands } from '../src/neo/neo-bridge.js';
+import { neoBridgeCommands, isRelevantMessage } from '../src/neo/neo-bridge.js';
 import { listTools } from './helpers.js';
 
 describe('Neo Bridge Commands', () => {
@@ -37,7 +37,9 @@ describe('Neo Bridge Commands', () => {
       const result = await neoCommand.handler(args);
 
       expect(result.description).to.equal('Missing PULUMI_ACCESS_TOKEN');
-      expect(result.content[0].text).to.include('PULUMI_ACCESS_TOKEN environment variable is not set');
+      expect(result.content[0].text).to.include(
+        'PULUMI_ACCESS_TOKEN environment variable is not set'
+      );
       expect(result.has_more).to.be.false;
 
       // Restore original token
@@ -125,6 +127,104 @@ describe('Neo Bridge Commands', () => {
       expect(resetTool?.inputSchema).to.be.an('object');
       const schema = resetTool?.inputSchema as any;
       expect(schema.properties).to.have.property('taskId');
+    });
+  });
+
+  describe('Approval Flow Tests', () => {
+    it('should reject invalid events with isRelevantMessage', () => {
+      // Test various invalid event structures (executes production code)
+      expect(isRelevantMessage(null)).to.be.false;
+      expect(isRelevantMessage(undefined)).to.be.false;
+      expect(isRelevantMessage('string')).to.be.false;
+      expect(isRelevantMessage(123)).to.be.false;
+      expect(isRelevantMessage({})).to.be.false;
+
+      // Missing required properties
+      expect(isRelevantMessage({ type: 'agentResponse' })).to.be.false; // missing id
+      expect(isRelevantMessage({ id: 'test' })).to.be.false; // missing type
+      expect(isRelevantMessage({ type: 'wrongType', id: 'test' })).to.be.false; // wrong type
+
+      // Missing eventBody
+      expect(isRelevantMessage({ type: 'agentResponse', id: 'test' })).to.be.false;
+
+      // Invalid eventBody
+      expect(
+        isRelevantMessage({
+          type: 'agentResponse',
+          id: 'test',
+          eventBody: null
+        })
+      ).to.be.false;
+
+      expect(
+        isRelevantMessage({
+          type: 'agentResponse',
+          id: 'test',
+          eventBody: 'string'
+        })
+      ).to.be.false;
+
+      // Missing required eventBody properties
+      expect(
+        isRelevantMessage({
+          type: 'agentResponse',
+          id: 'test',
+          eventBody: { type: 'user_approval_request' } // missing timestamp
+        })
+      ).to.be.false;
+
+      expect(
+        isRelevantMessage({
+          type: 'agentResponse',
+          id: 'test',
+          eventBody: { timestamp: '2025-01-01' } // missing type
+        })
+      ).to.be.false;
+    });
+
+    it('should accept valid assistant messages with isRelevantMessage', () => {
+      // Test valid message structures (executes production code)
+      const validAssistantMessage = {
+        type: 'agentResponse',
+        id: 'test-assistant-id',
+        eventBody: {
+          type: 'assistant_message',
+          timestamp: '2025-09-18T18:20:25.553066Z',
+          content: 'This is a test assistant message'
+        }
+      };
+
+      expect(isRelevantMessage(validAssistantMessage)).to.be.true;
+    });
+
+    it('should accept valid approval requests with isRelevantMessage', () => {
+      // Test approval request structure (executes production code)
+      const validApprovalRequest = {
+        type: 'agentResponse',
+        id: 'test-event-id',
+        eventBody: {
+          type: 'user_approval_request',
+          timestamp: '2025-09-18T18:20:25.553066Z',
+          id: 'sys-approval-test-123',
+          message: 'Should I proceed with the test operation?'
+        }
+      };
+
+      expect(isRelevantMessage(validApprovalRequest)).to.be.true;
+    });
+
+    it('should reject irrelevant message types with isRelevantMessage', () => {
+      // Test rejection of other message types (executes production code)
+      const irrelevantMessage = {
+        type: 'agentResponse',
+        id: 'test-id',
+        eventBody: {
+          type: 'some_other_type',
+          timestamp: '2025-09-18T18:20:25.553066Z'
+        }
+      };
+
+      expect(isRelevantMessage(irrelevantMessage)).to.be.false;
     });
   });
 });

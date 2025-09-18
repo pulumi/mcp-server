@@ -72,7 +72,7 @@ function debugLog(message: string) {
   }
 }
 
-function isRelevantMessage(event: unknown): event is NeoEvent {
+export function isRelevantMessage(event: unknown): event is NeoEvent {
   // Basic null/undefined check
   if (!event || typeof event !== 'object' || event === null) {
     return false;
