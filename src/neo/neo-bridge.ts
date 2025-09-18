@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import * as fs from 'node:fs';
 
+// Configurable API endpoint
+const PULUMI_API_URL = process.env.PULUMI_API_URL || 'https://api.pulumi.com';
+
 type NeoTaskLauncherArgs = {
   query: string;
   context?: string;
@@ -48,7 +51,7 @@ interface NeoEvent {
     // User confirmation fields
     approval_request_id?: string;
     ok?: boolean;
-    entity_diff?: any;
+    entity_diff?: Record<string, unknown>;
   };
 }
 
@@ -62,8 +65,10 @@ function debugLog(message: string) {
   const logMessage = `[${timestamp}] ${message}\n`;
   try {
     fs.appendFileSync(logFile, logMessage);
-  } catch {
-    // Silently ignore logging errors
+  } catch (error) {
+    // Fallback to console.error if file logging fails
+    console.error(`Failed to write to log file ${logFile}:`, error);
+    console.error(`Original log message: ${logMessage.trim()}`);
   }
 }
 
@@ -111,7 +116,7 @@ async function pollTaskEvents(
   while (Date.now() - startTime < maxTimeout) {
     try {
       const response = await fetch(
-        `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}/events?pageSize=100`,
+        `${PULUMI_API_URL}/api/preview/agents/pulumi/tasks/${taskId}/events?pageSize=100`,
         {
           method: 'GET',
           headers: {
@@ -259,26 +264,23 @@ async function sendApproval(
   instructions: string
 ): Promise<void> {
   try {
-    const response = await fetch(
-      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          event: {
-            type: 'user_confirmation',
-            timestamp: new Date().toISOString(),
-            entity_diff: {},
-            approval_request_id: approvalId,
-            ok: approved,
-            instructions: instructions
-          }
-        })
-      }
-    );
+    const response = await fetch(`${PULUMI_API_URL}/api/preview/agents/pulumi/tasks/${taskId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event: {
+          type: 'user_confirmation',
+          timestamp: new Date().toISOString(),
+          entity_diff: {},
+          approval_request_id: approvalId,
+          ok: approved,
+          instructions: instructions
+        }
+      })
+    });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
@@ -298,23 +300,20 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
     // Send follow-up message to existing task
     const followUpTime = new Date().toISOString();
     debugLog(`Sending follow-up message "${message}" to task ${taskId} at ${followUpTime}`);
-    const response = await fetch(
-      `https://api.pulumi.com/api/preview/agents/pulumi/tasks/${taskId}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          event: {
-            type: 'user_message',
-            content: message,
-            timestamp: followUpTime
-          }
-        })
-      }
-    );
+    const response = await fetch(`${PULUMI_API_URL}/api/preview/agents/pulumi/tasks/${taskId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event: {
+          type: 'user_message',
+          content: message,
+          timestamp: followUpTime
+        }
+      })
+    });
 
     if (!response.ok) {
       debugLog(`Follow-up message API response not OK: ${response.status}`);
@@ -471,7 +470,7 @@ ${args.query}`
 
         if (!args.taskId) {
           // Create a new task (first conversation)
-          const response = await fetch('https://api.pulumi.com/api/preview/agents/pulumi/tasks', {
+          const response = await fetch('${PULUMI_API_URL}/api/preview/agents/pulumi/tasks', {
             method: 'POST',
             headers: {
               Authorization: `token ${token}`,
