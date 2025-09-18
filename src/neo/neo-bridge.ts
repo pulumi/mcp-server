@@ -318,7 +318,8 @@ export const neoBridgeCommands = {
   'neo-bridge': {
     description:
       'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. ' +
-      'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ',
+      'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ' +
+      'When displaying messages to the user, try to return the data as-is with minimal summarization. ',
     schema: {
       query: z
         .string()
@@ -356,7 +357,7 @@ export const neoBridgeCommands = {
       try {
         // Check if this is a polling call or new task
         if (activeTaskId && (!args.query || args.query.trim() === '')) {
-          return pollAndFormatResults(activeTaskId, token, `Polling task {activeTaskId}`);
+          return pollAndFormatResults(activeTaskId, token, `Polling task ${activeTaskId}`);
         }
 
         const requestContent =
