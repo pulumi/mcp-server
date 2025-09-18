@@ -300,7 +300,7 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
     }
 
     debugLog(
-      `Follow-up sent to task ${taskId}, polling for response from sequence ${lastShownSeq}`
+      `Follow-up sent to task ${taskId}`
     );
   } catch (error) {
     throw new Error(
@@ -324,7 +324,8 @@ async function pollAndFormatResults(activeTaskId: string, token: string, firstMe
   const response = {
     description: `Neo task poll - ${result.messages.length} new messages`,
     content: [{ type: 'text' as const, text: firstMessage }, ...content],
-    has_more: result.hasMore
+    has_more: result.hasMore,
+    taskId: activeTaskId
   };
   debugLog(`Returning polling response: ${JSON.stringify(response)}`);
   return response;
@@ -359,7 +360,6 @@ export const neoBridgeCommands = {
     handler: async (args: NeoTaskLauncherArgs) => {
       debugLog(`=== NEO TASK LAUNCHER CALLED ===`);
       debugLog(`Args received: ${JSON.stringify(args)}`);
-      debugLog(`Active task ID: ${activeTaskId}`);
 
       const token = process.env.PULUMI_ACCESS_TOKEN;
 
