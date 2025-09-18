@@ -505,13 +505,16 @@ export const neoBridgeCommands = {
       'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. ' +
       'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ' +
       'When displaying messages to the user, try to return the data as-is with minimal summarization. ' +
-      'IMPORTANT: Only set the approval parameter when the user explicitly approves/rejects in response to Neo requesting approval. Never automatically approve - wait for explicit user consent.',
+      'IMPORTANT: Only set the approval parameter when the user explicitly approves/rejects in response to Neo requesting approval. Never automatically approve - wait for explicit user consent. ' +
+      'CRITICAL: Once you receive a taskId from this tool, YOU MUST CONTINUE USING THAT SAME taskId for ALL subsequent calls until the conversation is explicitly reset. ' +
+      'DO NOT create new tasks for follow-up questions - always use the existing taskId to send follow-up messages to the same Neo conversation. ' +
+      'Each Neo task represents a continuous conversation thread that should be maintained throughout the user session.',
     schema: {
       query: z
         .string()
         .optional()
         .describe(
-          'The task query to send to Neo (what the user wants Neo to do). Leave it empty when the tool is called again to read more data.'
+          'The task query to send to Neo (what the user wants Neo to do). For new tasks: describe the initial request. For existing tasks: provide follow-up questions, additional requirements, or clarifications to continue the same conversation. Leave empty only when polling for more data from an existing task.'
         ),
       context: z
         .string()
@@ -523,7 +526,7 @@ export const neoBridgeCommands = {
         .string()
         .optional()
         .describe(
-          'Task ID to continue an existing Neo conversation. Leave empty to start a new task. Use the taskId returned from previous calls.'
+          'Task ID to continue an existing Neo conversation. CRITICAL: Once you have a taskId from a previous call, you MUST always use it for follow-up questions in the same conversation. Only leave empty when starting the very first task. Always use the taskId returned from previous calls to maintain conversation continuity.'
         ),
       approval: z
         .boolean()
