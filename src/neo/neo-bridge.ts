@@ -73,32 +73,44 @@ function debugLog(message: string) {
 }
 
 function isRelevantMessage(event: unknown): event is NeoEvent {
-  if (
-    !event ||
-    typeof event !== 'object' ||
-    event === null ||
-    !('type' in event) ||
-    typeof (event as Record<string, unknown>).type !== 'string' ||
-    !('id' in event) ||
-    typeof (event as Record<string, unknown>).id !== 'string' ||
-    (event as Record<string, unknown>).type !== 'agentResponse' ||
-    !('eventBody' in event) ||
-    !(event as Record<string, unknown>).eventBody ||
-    typeof (event as Record<string, unknown>).eventBody !== 'object' ||
-    (event as Record<string, unknown>).eventBody === null ||
-    !('type' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>)) ||
-    !('timestamp' in ((event as Record<string, unknown>).eventBody as Record<string, unknown>)) ||
-    typeof ((event as Record<string, unknown>).eventBody as Record<string, unknown>).timestamp !==
-      'string'
-  ) {
+  // Basic null/undefined check
+  if (!event || typeof event !== 'object' || event === null) {
     return false;
   }
 
-  const eventBodyType = ((event as Record<string, unknown>).eventBody as Record<string, unknown>)
-    .type;
+  const eventObj = event as Record<string, unknown>;
+
+  // Check event has required top-level properties
+  if (!hasStringProperty(eventObj, 'type') || !hasStringProperty(eventObj, 'id')) {
+    return false;
+  }
+
+  // Check event type is 'agentResponse'
+  if (eventObj.type !== 'agentResponse') {
+    return false;
+  }
+
+  // Check eventBody exists and is an object
+  const eventBody = eventObj.eventBody;
+  if (!eventBody || typeof eventBody !== 'object' || eventBody === null) {
+    return false;
+  }
+
+  const eventBodyObj = eventBody as Record<string, unknown>;
+
+  // Check eventBody has required properties
+  if (!hasStringProperty(eventBodyObj, 'type') || !hasStringProperty(eventBodyObj, 'timestamp')) {
+    return false;
+  }
 
   // Accept both assistant messages and approval requests
+  const eventBodyType = eventBodyObj.type;
   return eventBodyType === 'assistant_message' || eventBodyType === 'user_approval_request';
+}
+
+// Helper function to check if an object has a property with string value
+function hasStringProperty(obj: Record<string, unknown>, prop: string): boolean {
+  return prop in obj && typeof obj[prop] === 'string';
 }
 
 async function pollTaskEvents(
