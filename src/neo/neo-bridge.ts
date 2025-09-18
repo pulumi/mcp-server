@@ -4,7 +4,27 @@ import * as fs from 'node:fs';
 type NeoTaskLauncherArgs = {
   query: string;
   context?: string;
+  taskId?: string;
 };
+
+// Task state type
+interface TaskState {
+  lastShownSeq: number;
+  pendingApprovalId: string | null;
+}
+
+// Global dictionary mapping taskId to task state
+const taskStateMap = new Map<string, TaskState>();
+
+function getTaskState(taskId: string): TaskState {
+  if (!taskStateMap.has(taskId)) {
+    taskStateMap.set(taskId, {
+      lastShownSeq: 0,
+      pendingApprovalId: null
+    });
+  }
+  return taskStateMap.get(taskId)!;
+}
 
 interface NeoEvent {
   type: string;
@@ -146,9 +166,10 @@ async function pollTaskEvents(
         );
 
         if (approvalRequest && approvalRequest.eventBody?.message) {
-          // Store the approval ID from the eventBody (not the event ID)
-          pendingApprovalId = approvalRequest.eventBody.id || null;
-          debugLog(`Stored pending approval ID: ${pendingApprovalId}`);
+          // Store the approval ID in task state
+          const taskState = getTaskState(taskId);
+          taskState.pendingApprovalId = approvalRequest.eventBody.id || null;
+          debugLog(`Stored pending approval ID: ${taskState.pendingApprovalId}`);
 
           // Format approval message for user
           let approvalMessage = approvalRequest.eventBody.message;
@@ -185,8 +206,9 @@ async function pollTaskEvents(
         );
 
         if (messages.length > 0) {
-          // Update global watermark when we return messages
-          lastShownSeq = nextSeq;
+          // Update task state watermark when we return messages
+          const taskState = getTaskState(taskId);
+          taskState.lastShownSeq = nextSeq;
           return {
             messages,
             hasMore: !hasFinalMessage
@@ -297,8 +319,9 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
 async function pollAndFormatResults(activeTaskId: string, token: string, firstMessage: string) {
   debugLog(`Polling task ${activeTaskId}`);
 
-  // Poll for new messages using client-provided sinceSeq
-  const result = await pollTaskEvents(activeTaskId, token, lastShownSeq);
+  // Poll for new messages using task state watermark
+  const taskState = getTaskState(activeTaskId);
+  const result = await pollTaskEvents(activeTaskId, token, taskState.lastShownSeq);
 
   const content = result.messages.map((message) => ({
     type: 'text' as const,
@@ -332,6 +355,12 @@ export const neoBridgeCommands = {
         .optional()
         .describe(
           'Optional conversation context with details of work done so far. Include: 1) Summary of what the user has been working on, 2) For any files modified, provide git diff format showing the changes, 3) Textual explanation of what was changed and why. Example: "The user has been working on authentication. Files modified: src/auth.ts - Added token support: ```diff\\n- function login(user) {\\n+ function login(user, token) {\\n```\\nThis change adds token-based auth for better security."'
+        ),
+      taskId: z
+        .string()
+        .optional()
+        .describe(
+          'Task ID to continue an existing Neo conversation. Leave empty to start a new task. Use the taskId returned from previous calls.'
         )
     },
     handler: async (args: NeoTaskLauncherArgs) => {
@@ -356,8 +385,8 @@ export const neoBridgeCommands = {
 
       try {
         // Check if this is a polling call or new task
-        if (activeTaskId && (!args.query || args.query.trim() === '')) {
-          return pollAndFormatResults(activeTaskId, token, `Polling task ${activeTaskId}`);
+        if (args.taskId && (!args.query || args.query.trim() === '')) {
+          return pollAndFormatResults(args.taskId, token, `Polling task ${args.taskId}`);
         }
 
         const requestContent =
@@ -371,7 +400,7 @@ User request:
 ${args.query}`
             : args.query;
 
-        if (!activeTaskId) {
+        if (!args.taskId) {
           // Create a new task (first conversation)
           const response = await fetch('https://api.pulumi.com/api/preview/agents/pulumi/tasks', {
             method: 'POST',
@@ -399,49 +428,54 @@ ${args.query}`
           }
 
           const result = await response.json();
-          activeTaskId = result.taskId; // Store for future polling
+          const newTaskId = result.taskId;
 
-          debugLog(`Created new task ${activeTaskId}`);
-
-          // Reset watermark for new task
-          lastShownSeq = 0;
+          debugLog(`Created new task ${newTaskId}`);
 
           return pollAndFormatResults(
-            activeTaskId!,
+            newTaskId,
             token,
-            `Check the task status at: https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
+            `Neo task launched at: https://app.pulumi.com/pulumi/neo/tasks/${newTaskId}`
           );
         }
 
         // Handle pending approval (user responding to approval)
-        if (pendingApprovalId) {
-          debugLog(`User approved with: "${args.query}"`);
+        if (args.taskId) {
+          const taskState = getTaskState(args.taskId);
+          if (taskState.pendingApprovalId) {
+            debugLog(`User approved with: "${args.query}"`);
 
-          // Send approval
-          await sendApproval(activeTaskId, token, pendingApprovalId, true);
+            // Send approval
+            await sendApproval(args.taskId, token, taskState.pendingApprovalId, true);
 
-          // Clear the approval ID since it's been processed
-          const approvedId = pendingApprovalId;
-          pendingApprovalId = null;
-          debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
+            // Clear the approval ID since it's been processed
+            const approvedId = taskState.pendingApprovalId;
+            taskState.pendingApprovalId = null;
+            debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
 
-          return pollAndFormatResults(
-            activeTaskId,
-            token,
-            `Approval sent to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
-          );
+            return pollAndFormatResults(
+              args.taskId,
+              token,
+              `Approval sent to task https://app.pulumi.com/pulumi/neo/tasks/${args.taskId}`
+            );
+          }
         }
 
         // Continue existing conversation as follow-up
-        debugLog(`Sending follow-up to existing task ${activeTaskId}: "${args.query}"`);
+        if (args.taskId) {
+          debugLog(`Sending follow-up to existing task ${args.taskId}: "${args.query}"`);
 
-        await sendFollowUpMessage(activeTaskId, token, requestContent);
+          await sendFollowUpMessage(args.taskId, token, requestContent);
 
-        return pollAndFormatResults(
-          activeTaskId,
-          token,
-          `Follow-up sent to task https://app.pulumi.com/pulumi/neo/tasks/${activeTaskId}`
-        );
+          return pollAndFormatResults(
+            args.taskId,
+            token,
+            `Sent follow-up message to task https://app.pulumi.com/pulumi/neo/tasks/${args.taskId}`
+          );
+        }
+
+        // Should not reach here - either taskId should be provided or new task should be created
+        throw new Error('Invalid state: no taskId provided and not creating new task');
       } catch (error) {
         return {
           description: 'Network error',
@@ -457,22 +491,41 @@ ${args.query}`
     }
   },
   'neo-reset-conversation': {
-    description: 'Reset the active Neo conversation to start fresh',
-    schema: {},
-    handler: async () => {
-      activeTaskId = null;
-      pendingApprovalId = null; // Clear pending approval when resetting
-      lastShownSeq = 0; // Reset watermark
-      return {
-        description: 'Neo conversation reset',
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Neo conversation has been reset. The next "Ask Neo" request will start a new task.'
-          }
-        ],
-        has_more: false
-      };
+    description: 'Reset the Neo conversation for a specific task',
+    schema: {
+      taskId: z
+        .string()
+        .optional()
+        .describe('Task ID to reset. If not provided, resets all tasks.')
+    },
+    handler: async (args: { taskId?: string }) => {
+      if (args.taskId) {
+        // Clear state for specific task
+        taskStateMap.delete(args.taskId);
+        return {
+          description: 'Neo task reset',
+          content: [
+            {
+              type: 'text' as const,
+              text: `Neo task ${args.taskId} has been reset.`
+            }
+          ],
+          has_more: false
+        };
+      } else {
+        // Clear all task states
+        taskStateMap.clear();
+        return {
+          description: 'Neo conversation reset',
+          content: [
+            {
+              type: 'text' as const,
+              text: 'All Neo task states have been cleared.'
+            }
+          ],
+          has_more: false
+        };
+      }
     }
   }
 };
