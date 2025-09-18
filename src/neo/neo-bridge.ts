@@ -299,9 +299,7 @@ async function sendFollowUpMessage(taskId: string, token: string, message: strin
       throw new Error(`Follow-up API returned status ${response.status}: ${errorText}`);
     }
 
-    debugLog(
-      `Follow-up sent to task ${taskId}`
-    );
+    debugLog(`Follow-up sent to task ${taskId}`);
   } catch (error) {
     throw new Error(
       `Error sending follow-up message: ${error instanceof Error ? error.message : 'Unknown error'}`
