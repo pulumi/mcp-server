@@ -47,13 +47,6 @@ interface NeoEvent {
   };
 }
 
-// Global storage for the active Neo task ID to enable follow-up conversations
-let activeTaskId: string | null = null;
-// Pending approval request ID
-let pendingApprovalId: string | null = null;
-// Global watermark tracking the last message shown to user
-let lastShownSeq: number = 0;
-
 function debugLog(message: string) {
   const logFile = process.env.MCP_LOG_FILE;
   if (!logFile) {
@@ -493,10 +486,7 @@ ${args.query}`
   'neo-reset-conversation': {
     description: 'Reset the Neo conversation for a specific task',
     schema: {
-      taskId: z
-        .string()
-        .optional()
-        .describe('Task ID to reset. If not provided, resets all tasks.')
+      taskId: z.string().optional().describe('Task ID to reset. If not provided, resets all tasks.')
     },
     handler: async (args: { taskId?: string }) => {
       if (args.taskId) {
