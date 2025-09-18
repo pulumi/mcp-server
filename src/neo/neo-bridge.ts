@@ -5,6 +5,7 @@ type NeoTaskLauncherArgs = {
   query: string;
   context?: string;
   taskId?: string;
+  approval?: boolean;
 };
 
 // Task state type
@@ -44,6 +45,10 @@ interface NeoEvent {
       tool_call_id?: string;
       tool_name?: string;
     };
+    // User confirmation fields
+    approval_request_id?: string;
+    ok?: boolean;
+    entity_diff?: any;
   };
 }
 
@@ -170,6 +175,24 @@ async function pollTaskEvents(
           messages.push(approvalMessage);
         }
 
+        // Check if any pending approval was already confirmed
+        const taskState = getTaskState(taskId);
+        if (taskState.pendingApprovalId) {
+          const confirmationEvent = newMessages.find(
+            (event) =>
+              event.eventBody?.type === 'user_confirmation' &&
+              event.eventBody?.approval_request_id === taskState.pendingApprovalId
+          );
+
+          if (confirmationEvent) {
+            // Approval was already processed, clear it from our state
+            debugLog(
+              `Approval ${taskState.pendingApprovalId} was already processed, clearing from state`
+            );
+            taskState.pendingApprovalId = null;
+          }
+        }
+
         // Find if there's a final message or approval request
         const hasFinalMessage = newMessages.some(
           (event) =>
@@ -232,7 +255,8 @@ async function sendApproval(
   taskId: string,
   token: string,
   approvalId: string,
-  approved: boolean
+  approved: boolean,
+  instructions: string
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -247,8 +271,10 @@ async function sendApproval(
           event: {
             type: 'user_confirmation',
             timestamp: new Date().toISOString(),
+            entity_diff: {},
             approval_request_id: approvalId,
-            ok: approved
+            ok: approved,
+            instructions: instructions
           }
         })
       }
@@ -334,7 +360,8 @@ export const neoBridgeCommands = {
     description:
       'Launch and monitor Neo tasks step by step. Pulumi Neo is a purpose-built cloud infrastructure automation agent. ' +
       'If the JSON result has `has_more=true`, call this tool again to read more data. Continue calling until `has_more=false`. If you stop calling the tool, tell the user that the task continues running in Pulumi Console. ' +
-      'When displaying messages to the user, try to return the data as-is with minimal summarization. ',
+      'When displaying messages to the user, try to return the data as-is with minimal summarization. ' +
+      'IMPORTANT: Only set the approval parameter when the user explicitly approves/rejects in response to Neo requesting approval. Never automatically approve - wait for explicit user consent.',
     schema: {
       query: z
         .string()
@@ -353,6 +380,12 @@ export const neoBridgeCommands = {
         .optional()
         .describe(
           'Task ID to continue an existing Neo conversation. Leave empty to start a new task. Use the taskId returned from previous calls.'
+        ),
+      approval: z
+        .boolean()
+        .optional()
+        .describe(
+          'ONLY set this when the user explicitly says "yes", "approve", "go ahead", "proceed" (approval=true) or "no", "reject", "cancel", "stop" (approval=false) in response to Neo waiting for approval. Do NOT set this parameter for normal follow-ups or when continuing conversations. This parameter should ONLY be used as a direct reaction to user approval/rejection language when Neo is waiting for confirmation.'
         )
     },
     handler: async (args: NeoTaskLauncherArgs) => {
@@ -375,6 +408,51 @@ export const neoBridgeCommands = {
       }
 
       try {
+        // First check for pending approval if we have a taskId
+        if (args.taskId) {
+          const taskState = getTaskState(args.taskId);
+          if (taskState.pendingApprovalId) {
+            // Task is waiting for approval
+            if (args.approval === undefined) {
+              // User didn't provide approval parameter - fail with clear error
+              return {
+                description: 'Approval required',
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: "I don't understand if you approved or not. Neo is waiting for approval. Please call this tool again with approval=true to approve or approval=false to reject."
+                  }
+                ],
+                has_more: false
+              };
+            } else {
+              // User provided explicit approval - process it
+              debugLog(`User ${args.approval ? 'approved' : 'rejected'} with: "${args.query}"`);
+
+              await sendApproval(
+                args.taskId,
+                token,
+                taskState.pendingApprovalId,
+                args.approval,
+                args.query || ''
+              );
+
+              // Clear the approval ID since it's been processed
+              const approvedId = taskState.pendingApprovalId;
+              taskState.pendingApprovalId = null;
+              debugLog(
+                `Cleared pending approval ID ${approvedId} after user ${args.approval ? 'approval' : 'rejection'}`
+              );
+
+              return pollAndFormatResults(
+                args.taskId,
+                token,
+                `Approval sent: ${args.approval ? 'APPROVED' : 'REJECTED'}`
+              );
+            }
+          }
+        }
+
         // Check if this is a polling call or new task
         if (args.taskId && (!args.query || args.query.trim() === '')) {
           return pollAndFormatResults(args.taskId, token, `Polling task ${args.taskId}`);
@@ -428,28 +506,6 @@ ${args.query}`
             token,
             `Neo task launched at: https://app.pulumi.com/pulumi/neo/tasks/${newTaskId}`
           );
-        }
-
-        // Handle pending approval (user responding to approval)
-        if (args.taskId) {
-          const taskState = getTaskState(args.taskId);
-          if (taskState.pendingApprovalId) {
-            debugLog(`User approved with: "${args.query}"`);
-
-            // Send approval
-            await sendApproval(args.taskId, token, taskState.pendingApprovalId, true);
-
-            // Clear the approval ID since it's been processed
-            const approvedId = taskState.pendingApprovalId;
-            taskState.pendingApprovalId = null;
-            debugLog(`Cleared pending approval ID ${approvedId} after user approval`);
-
-            return pollAndFormatResults(
-              args.taskId,
-              token,
-              `Approval sent to task https://app.pulumi.com/pulumi/neo/tasks/${args.taskId}`
-            );
-          }
         }
 
         // Continue existing conversation as follow-up
