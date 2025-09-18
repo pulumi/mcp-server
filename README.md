@@ -10,24 +10,24 @@ The Pulumi MCP Server enables advanced Infrastructure as Code development capabi
 
 ### Available Tools
 
-| Tool | Description |
-|------|-------------|
-| `pulumi-registry-list-resources` | Browse available cloud resources to discover what infrastructure components can be deployed |
-| `pulumi-registry-list-functions` | Explore available provider functions for interacting with cloud resources |
-| `pulumi-registry-get-resource` | Get code examples and documentation for specific resources that can be deployed |
-| `pulumi-registry-get-function` | Access examples of provider functions for usage in your Pulumi program |
-| `pulumi-registry-get-type` | Get schema definitions needed to properly set up complex resource properties and types |
-| `pulumi-cli-preview` | Preview infrastructure changes before deployment, showing what resources will be created, updated, or deleted |
-| `pulumi-cli-up` | Deploy infrastructure changes to the cloud, creating and updating resources as defined in your Pulumi program |
-| `pulumi-cli-stack-output` | Retrieve deployment outputs like URLs and resource IDs from your infrastructure stacks |
-| `pulumi-cli-refresh` | Sync your Pulumi state with actual cloud resources to detect drift and manual changes |
-| `pulumi-resource-search` | Discover, count, and analyze your deployed infrastructure across all cloud providers. |
-| `neo-task-launcher` | Interact with Pulumi Neo for advanced infrastructure tasks |
+| Tool                             | Description                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pulumi-registry-list-resources` | Browse available cloud resources to discover what infrastructure components can be deployed                   |
+| `pulumi-registry-list-functions` | Explore available provider functions for interacting with cloud resources                                     |
+| `pulumi-registry-get-resource`   | Get code examples and documentation for specific resources that can be deployed                               |
+| `pulumi-registry-get-function`   | Access examples of provider functions for usage in your Pulumi program                                        |
+| `pulumi-registry-get-type`       | Get schema definitions needed to properly set up complex resource properties and types                        |
+| `pulumi-cli-preview`             | Preview infrastructure changes before deployment, showing what resources will be created, updated, or deleted |
+| `pulumi-cli-up`                  | Deploy infrastructure changes to the cloud, creating and updating resources as defined in your Pulumi program |
+| `pulumi-cli-stack-output`        | Retrieve deployment outputs like URLs and resource IDs from your infrastructure stacks                        |
+| `pulumi-cli-refresh`             | Sync your Pulumi state with actual cloud resources to detect drift and manual changes                         |
+| `pulumi-resource-search`         | Discover, count, and analyze your deployed infrastructure across all cloud providers.                         |
+| `neo-bridge`                     | Interact with Pulumi Neo for advanced infrastructure tasks                                                    |
 
 ### Available Prompts
 
-| Prompt | Description |
-|--------|-------------|
+| Prompt          | Description                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `deploy-to-aws` | Get step-by-step guidance for deploying already written applications to the cloud with Pulumi, including security and cost optimization tips |
 
 ## Installation
@@ -132,9 +132,13 @@ Run the server in basic STDIO configuration:
     "pulumi": {
       "command": "docker",
       "args": [
-        "run", "-i", "--rm",
-        "-e", "PULUMI_ACCESS_TOKEN=your-access-token",
-        "mcp/pulumi:latest", "stdio"
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "PULUMI_ACCESS_TOKEN=your-access-token",
+        "mcp/pulumi:latest",
+        "stdio"
       ]
     }
   }
@@ -151,10 +155,15 @@ For Pulumi CLI operations that require access to local projects and their files,
     "pulumi": {
       "command": "docker",
       "args": [
-        "run", "-i", "--rm",
-        "-v", "~/projects/my-pulumi-app:/app/project",
-        "-e", "PULUMI_ACCESS_TOKEN=your-access-token",
-        "mcp/pulumi:latest", "stdio"
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "~/projects/my-pulumi-app:/app/project",
+        "-e",
+        "PULUMI_ACCESS_TOKEN=your-access-token",
+        "mcp/pulumi:latest",
+        "stdio"
       ]
     }
   }
@@ -198,6 +207,7 @@ To connect Claude Desktop (which uses STDIO) to the HTTP server, copy the follow
 ```
 
 This configuration:
+
 - Runs the MCP bridge in a Docker container
 - Connects to your HTTP server using `host.docker.internal` (Docker's host machine reference)
 - Bridges STDIO ↔ HTTP communication
@@ -205,11 +215,12 @@ This configuration:
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `PULUMI_ACCESS_TOKEN` | Pulumi Cloud access token | `""` | For resource deployment & insights |
+| Variable              | Description               | Default | Required                           |
+| --------------------- | ------------------------- | ------- | ---------------------------------- |
+| `PULUMI_ACCESS_TOKEN` | Pulumi Cloud access token | `""`    | For resource deployment & insights |
 
-> **Notes:** 
+> **Notes:**
+>
 > - When mounting local directories, reference the project as `/app/project` in your MCP tool requests
 > - Mount `~/.pulumi` to preserve Pulumi CLI configuration and credentials
 > - Add cloud provider credential volumes and environment variables as needed for your deployments
@@ -217,17 +228,18 @@ This configuration:
 ## Development
 
 ### Requirements
+
 - Node.js and npm
 - Pulumi CLI
 
 ### Build Commands
 
-| Command | Description |
-|---------|-------------|
-| `make ensure` | Install dependencies |
-| `make build` | Build the project |
-| `make test` | Run all tests |
-| `npm run build` | Build using npm |
+| Command            | Description              |
+| ------------------ | ------------------------ |
+| `make ensure`      | Install dependencies     |
+| `make build`       | Build the project        |
+| `make test`        | Run all tests            |
+| `npm run build`    | Build using npm          |
 | `npm run lint:fix` | Find and fix lint errors |
 
 ### Quick Start

@@ -92,7 +92,6 @@ echo "Installing new version..."
 claude mcp add-json -s user "$MCP_NAME" "{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"$DIST_PATH\",\"stdio\"]}"
 
 echo "✅ Successfully installed $MCP_NAME"
-echo "You can now use the deploy-to-aws tool and prompt in Claude."
 
 # Show cleanup instructions if using temp directory
 if [ $# -gt 0 ] && [ -d "$TEMP_DIR" ]; then
