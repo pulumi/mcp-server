@@ -47,7 +47,7 @@ export class PulumiSearchApiClient {
     // Set page size based on top parameter to avoid over-fetching
     const pageSize = request.top ? Math.min(20, request.top) : 20;
 
-    const url = new URL(`api/orgs/${request.org}/search/resourcesv2`, this.config.apiUrl);
+    const url = new URL(`/api/orgs/${request.org}/search/resourcesv2`, this.config.apiUrl);
 
     // Add query parameters
     url.searchParams.set('organization', request.org);
@@ -69,13 +69,9 @@ export class PulumiSearchApiClient {
 
     let nextUrl = data.pagination?.next;
     while (nextUrl && allResources.length < maxResultsToFetch) {
-      // Handle relative URLs by trimming base URL if present
-      if (nextUrl.startsWith(this.config.apiUrl)) {
-        nextUrl = nextUrl.substring(this.config.apiUrl.length + 1);
-      }
-
-      const fullUrl = nextUrl.startsWith('http') ? nextUrl : `${this.config.apiUrl}/${nextUrl}`;
-      const pageResponse = await this.makeRequest(fullUrl);
+      // Use robust URL resolution to handle both absolute and relative URLs
+      const fullUrl = new URL(nextUrl, this.config.apiUrl);
+      const pageResponse = await this.makeRequest(fullUrl.toString());
       const pageData = await pageResponse.json();
 
       const pageResources = pageData.resources || [];
