@@ -6,13 +6,8 @@
 export interface PulumiSearchRequest {
   query: string;
   org: string;
-  size?: number;
-  page?: number;
   top?: number;
   properties?: boolean;
-  source?: string;
-  facet?: string[];
-  ai?: string;
 }
 
 export interface PulumiSearchResponse {
@@ -22,21 +17,14 @@ export interface PulumiSearchResponse {
     project: string;
     stack: string;
     properties: Record<string, unknown>;
+    urn?: string;
     id?: string;
     created?: string;
     modified?: string;
     provider?: string;
     package?: string;
   }[];
-  facets: {
-    type: { [key: string]: number };
-    package: { [key: string]: number };
-    project: { [key: string]: number };
-    stack: { [key: string]: number };
-  };
   totalResources: number;
-  page?: number;
-  size?: number;
 }
 
 export interface PulumiSearchApiClientConfig {
@@ -53,30 +41,63 @@ export class PulumiSearchApiClient {
 
   /**
    * Search for resources using Pulumi Cloud Resource Search API
-   * Calls: GET /api/orgs/{orgName}/search/resources
+   * Calls: GET /api/orgs/{orgName}/search/resourcesv2
    */
   async searchResources(request: PulumiSearchRequest): Promise<PulumiSearchResponse> {
-    const url = new URL(`/api/orgs/${request.org}/search/resources`, this.config.apiUrl);
+    // Set page size based on top parameter to avoid over-fetching
+    const pageSize = request.top ? Math.min(20, request.top) : 20;
+
+    const url = new URL(`/api/orgs/${request.org}/search/resourcesv2`, this.config.apiUrl);
 
     // Add query parameters
+    url.searchParams.set('organization', request.org);
     url.searchParams.set('query', request.query);
-    url.searchParams.set('size', (request.size || 25).toString());
-    url.searchParams.set('page', (request.page || 0).toString());
-    url.searchParams.set('top', (request.top || 20).toString());
     url.searchParams.set('properties', (request.properties || false).toString());
-    url.searchParams.set('source', request.source || 'mcp-server');
+    url.searchParams.set('size', pageSize.toString());
+    url.searchParams.set('page', '1'); // API uses 1-indexed pages
 
-    // Add facet parameters
-    const facets = request.facet || ['type', 'package', 'project', 'stack'];
-    facets.forEach((facet) => {
-      url.searchParams.append('facet', facet);
-    });
+    // Initial fetch outside loop
+    const response = await this.makeRequest(url.toString());
+    const data = await response.json();
 
-    if (request.ai) {
-      url.searchParams.set('ai', request.ai);
+    let allResources: PulumiSearchResponse['resources'] = data.resources || [];
+    const totalResources = data.total || 0;
+
+    // The 250 constant is found empirically - with this limit, queries can complete successfully
+    // while higher limits may cause timeouts or failures
+    const maxResultsToFetch = Math.min(totalResources, request.top || 250);
+
+    let nextUrl = data.pagination?.next;
+    while (nextUrl && allResources.length < maxResultsToFetch) {
+      // Use robust URL resolution to handle both absolute and relative URLs
+      const fullUrl = new URL(nextUrl, this.config.apiUrl);
+      const pageResponse = await this.makeRequest(fullUrl.toString());
+      const pageData = await pageResponse.json();
+
+      const pageResources = pageData.resources || [];
+
+      // If we got no results, we're done
+      if (pageResources.length === 0) {
+        break;
+      }
+
+      allResources.push(...pageResources);
+      nextUrl = pageData.pagination?.next;
     }
 
-    const response = await fetch(url.toString(), {
+    // Trim results to respect the top parameter (capped to maxResultsToFetch)
+    if (allResources.length > maxResultsToFetch) {
+      allResources = allResources.slice(0, maxResultsToFetch);
+    }
+
+    return {
+      resources: allResources,
+      totalResources
+    };
+  }
+
+  private async makeRequest(url: string): Promise<Response> {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         Authorization: `token ${this.config.accessToken}`,
@@ -87,6 +108,17 @@ export class PulumiSearchApiClient {
     });
 
     if (!response.ok) {
+      let errorMessage = `Pulumi API error: ${response.status} ${response.statusText}`;
+
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage += ` - ${errorData.message}`;
+        }
+      } catch {
+        // Ignore JSON parsing errors for error responses
+      }
+
       if (response.status === 402) {
         throw new Error('Quota limit exceeded for resource search API');
       }
@@ -97,27 +129,13 @@ export class PulumiSearchApiClient {
         throw new Error('Forbidden: Insufficient permissions for resource search');
       }
       if (response.status === 404) {
-        throw new Error(`Organization '${request.org}' not found`);
+        throw new Error('Organization not found or resource search endpoint not available');
       }
 
-      throw new Error(`Pulumi API error: ${response.status} ${response.statusText}`);
+      throw new Error(errorMessage);
     }
 
-    const data = await response.json();
-
-    // Transform the API response to match our interface
-    return {
-      resources: data.resources || [],
-      facets: data.facets || {
-        type: {},
-        package: {},
-        project: {},
-        stack: {}
-      },
-      totalResources: data.total || 0,
-      page: data.page,
-      size: data.size
-    };
+    return response;
   }
 }
 

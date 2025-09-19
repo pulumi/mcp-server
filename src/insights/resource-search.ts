@@ -5,7 +5,6 @@ export type ResourceSearchArgs = {
   query: string;
   org?: string;
   top?: number;
-  size?: number;
   properties?: boolean;
 };
 
@@ -19,12 +18,6 @@ export type ResourceSearchResult = {
     properties: Record<string, unknown>;
   }[];
   summary: string;
-  facets?: {
-    type: { [key: string]: number };
-    package: { [key: string]: number };
-    project: { [key: string]: number };
-    stack: { [key: string]: number };
-  };
   totalResources: number;
 };
 
@@ -66,16 +59,13 @@ export abstract class ResourceSearchHandlerBase {
       query: args.query,
       org: org,
       top: args.top,
-      size: args.size,
-      properties: args.properties,
-      source: 'mcp-server'
+      properties: args.properties
     });
 
     const results: ResourceSearchResult = {
       query: args.query,
       resources: apiResponse.resources,
       summary: this.createSummary(apiResponse),
-      facets: apiResponse.facets,
       totalResources: apiResponse.totalResources
     };
 
@@ -90,7 +80,6 @@ export abstract class ResourceSearchHandlerBase {
               org: org,
               results: {
                 resources: results.resources,
-                facets: results.facets,
                 totalResources: results.totalResources
               },
               summary: results.summary
@@ -128,13 +117,68 @@ setResourceSearchHandler(new ResourceSearchHandler());
 
 export const resourceSearchCommands = {
   'resource-search': {
-    description:
-      'Search and analyze Pulumi-managed cloud resources using Lucene-style queries. This tool can discover, count, and analyze your deployed infrastructure across all cloud providers.\n\nQuery Syntax Examples:\n- All S3 buckets: type:aws:s3:Bucket\n- Untagged resources: -properties.tags:*\n- Untagged S3 buckets: type:aws:s3:Bucket AND -properties.tags:*\n- Resources in production stack: stack:production\n- AWS Lambda functions: package:aws type:lambda:Function\n- Resources by project: project:my-app\n\nSupports field filters, boolean operators (AND, OR, NOT), exact matches with quotes, and property searches. The top parameter controls the maximum number of results to return (defaults to 20).',
+    description: `Search and analyze Pulumi-managed cloud resources using a strict subset of Lucene query syntax.
+
+QUERY SYNTAX RULES:
+- The search query syntax is a strict subset of Lucene query syntax
+- The documents being searched are Pulumi resources
+- The implicit operator is AND
+- Parentheses and OR are supported between fields but not within fields
+- All resources are returned by default (use empty query "" to get all)
+- Wildcard queries are NOT supported (no * allowed)
+- Fuzzy queries are NOT supported
+- Boosting is NOT supported
+- Field grouping is NOT supported
+- Whitespace is NOT supported
+- field:value produces a match_phrase query
+- field:"value" produces a term query
+- -field:value produces a bool must_not match_phrase query
+- -field:"value" produces a bool must_not term query
+- field: produces an existence query
+- Resource properties can be queried with leading dot: .property.path:value or .property.path: (existence)
+- You absolutely must not produce queries that use fields other than: type, name, id, stack, project, package, modified, provider, provider_urn, team and protected, unless the field is the name of a property.
+- You absolutely must not produce queries that use wildcards (e.g., *).
+- You absolutely must not produce queries that use field grouping (e.g., type:(a OR b))
+
+AVAILABLE FIELDS:
+- type: Pulumi types used for pulumi import operations (e.g., aws:s3/bucket:Bucket)
+- name: logical Pulumi resource names
+- id: physical Pulumi resource names
+- stack: name of the stack the resource belongs to
+- project: name of the project the resource belongs to
+- created: when the resource was first created (absolute dates only)
+- modified: when the resource was last modified (absolute dates only)
+- package: package of the resource (e.g., aws, gcp)
+- provider: alias for the "package" field
+- provider_urn: full URN of the resource's provider
+- protected: boolean representing whether a resource is protected
+- team: name of a team with access to the resource
+
+IMPORTANT QUERY PATTERNS:
+For AWS resources, do not use specific provider prefixes (aws: or aws-native:) in type filters. Instead:
+WRONG: type:aws:s3/bucket:Bucket
+WRONG: type:aws-native:s3:Bucket
+CORRECT: type:"Bucket" (searches across both aws and aws-native providers)
+For package filtering, use the generic package name:
+CORRECT: package:aws (matches both aws and aws-native packages)
+For finding resources by service, prefer the module field when possible:
+PREFERRED: module:s3 (finds all S3 resources regardless of provider)
+For property existence queries, always use the dot notation:
+CORRECT: .tags: (checks if tags property exists)
+For property negation queries (finding resources WITHOUT a property):
+CORRECT: -.tags: or NOT .tags: (finds resources without tags)
+COMMON TRANSLATIONS:
+- "untagged resources" → -.tags: or NOT .tags:
+- "resources without tags" → -.tags: or NOT .tags:
+
+Supports field filters, boolean operators (AND, OR, NOT), exact matches with quotes, and property searches. The top parameter controls the maximum number of results to return (defaults to 20).
+
+Resources may not have a repository url. This means that there is no available information about the repository that the resource is associated with.`,
     schema: {
       query: z
         .string()
         .describe(
-          'Lucene-style query to search for cloud resources. Examples: "type:aws:s3:Bucket AND -properties.tags:*" (untagged S3 buckets), "package:aws type:lambda:Function" (Lambda functions), "stack:production" (production resources)'
+          'Lucene query string using strict subset syntax (see tool description for full rules). NO WILDCARDS (*) allowed.'
         ),
       org: z
         .string()
@@ -143,12 +187,18 @@ export const resourceSearchCommands = {
       top: z
         .number()
         .optional()
+        .default(20)
         .describe('Maximum number of top results to return (defaults to 20)'),
-      size: z.number().optional().describe('Number of results per page (defaults to 25)'),
       properties: z
         .boolean()
         .optional()
-        .describe('Whether to include resource properties in the response (defaults to false)')
+        .default(false)
+        .describe(
+          'Whether to include resource properties in the response (defaults to false). ' +
+            'WARNING: Setting this to true produces significantly more tokens and can cause response size limits to be exceeded. ' +
+            'Only set to true when: (1) user explicitly requests properties/details, (2) querying a very small number of specific resources, or (3) user needs property-based analysis. ' +
+            'NOT recommended for loose queries (empty query, broad type searches, etc.) that return many resources.'
+        )
     },
     handler: (args: ResourceSearchArgs) => resourceSearchHandler.handle(args)
   }
