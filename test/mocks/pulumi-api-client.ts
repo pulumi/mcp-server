@@ -41,12 +41,6 @@ export class MockPulumiApiClient extends PulumiSearchApiClient {
             package: 'aws'
           }
         ],
-        facets: {
-          type: { 'aws:s3:Bucket': 1 },
-          package: { aws: 1 },
-          project: { 'example-project': 1 },
-          stack: { dev: 1 }
-        },
         totalResources: 1
       };
     }
@@ -72,12 +66,6 @@ export class MockPulumiApiClient extends PulumiSearchApiClient {
           package: 'aws'
         }
       ],
-      facets: {
-        type: { 'aws:ec2:Instance': 1 },
-        package: { aws: 1 },
-        project: { 'example-project': 1 },
-        stack: { dev: 1 }
-      },
       totalResources: 1
     };
   }
